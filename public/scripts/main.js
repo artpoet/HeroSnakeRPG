@@ -15,10 +15,11 @@ const ITEM_COLOR = "#a855f7"; // 道具顏色 (紫色)
 const LEADER_MAX_HP = 150; // 隊長血量上限
 const LEADER_COLLISION_DAMAGE = 35; // 隊長被撞傷害
 const LEADER_HEAL_ON_KILL = 10; // 擊殺敵人回復量
+const ASSET_BASE_PATH = "./assets/images/";
 
 const assetDefinitions = {
   leader: {
-    src: "leader.png",
+    src: `${ASSET_BASE_PATH}leader.png`,
     fallback: (x, y, size) => {
       drawFallbackBlock("#ef4444", () => {
         ctx.fillStyle = "#fff";
@@ -30,7 +31,7 @@ const assetDefinitions = {
     },
   },
   archer: {
-    src: "archer.png",
+    src: `${ASSET_BASE_PATH}archer.png`,
     fallback: (x, y, size) => {
       drawFallbackBlock("#22c55e", () => {
         ctx.strokeStyle = "#14532d";
@@ -46,7 +47,7 @@ const assetDefinitions = {
     },
   },
   mage: {
-    src: "mage.png",
+    src: `${ASSET_BASE_PATH}mage.png`,
     fallback: (x, y, size) => {
       drawFallbackBlock("#3b82f6", () => {
         ctx.fillStyle = "#f0f9ff";
@@ -60,7 +61,7 @@ const assetDefinitions = {
     },
   },
   knight: {
-    src: "knight.png",
+    src: `${ASSET_BASE_PATH}knight.png`,
     fallback: (x, y, size) => {
       drawFallbackBlock("#facc15", () => {
         ctx.fillStyle = "#78350f";
@@ -72,7 +73,7 @@ const assetDefinitions = {
     },
   },
   enemy: {
-    src: "enemy.png",
+    src: `${ASSET_BASE_PATH}enemy.png`,
     fallback: (x, y, size) => {
       drawFallbackBlock("#efefef", () => {
         ctx.fillStyle = "#0f172a";
@@ -83,7 +84,7 @@ const assetDefinitions = {
     },
   },
   item: {
-    src: "item.png",
+    src: `${ASSET_BASE_PATH}item.png`,
     fallback: (x, y, size) => {
       ctx.fillStyle = ITEM_COLOR;
       ctx.beginPath();

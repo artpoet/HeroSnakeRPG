@@ -19,6 +19,14 @@
     </script>
   </head>
   <body>
+    <div id="loaderOverlay" class="loader-overlay">
+      <div class="loader-card">
+        <p id="loaderText">載入資產中... 0%</p>
+        <div class="loader-bar">
+          <div id="loaderBar"></div>
+        </div>
+      </div>
+    </div>
     <div class="ui">
       <h1>勇者貪食蛇 RPG</h1>
       <div class="scoreboard">
@@ -26,10 +34,65 @@
         <div class="score">擊殺數：<span id="killValue">0</span></div>
       </div>
     </div>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div class="game-wrapper">
+      <canvas id="gameCanvas" width="800" height="600"></canvas>
+      <aside class="guide-panel">
+        <h2>快速指引</h2>
+        <p>右側圖鑑讓你在遊戲開始前就知道每位勇者的能力與敵人的樣貌。</p>
+        <ul class="icon-list">
+          <li>
+            <img src="leader.png" alt="隊長圖示" />
+            <div>
+              <strong>隊長</strong>
+              <p>由你操控的蛇頭，血量歸零才會失敗。</p>
+            </div>
+          </li>
+          <li>
+            <img src="archer.png" alt="弓箭手圖示" />
+            <div>
+              <strong>弓箭手</strong>
+              <p>自動鎖定射程內最近敵人，提供穩定輸出。</p>
+            </div>
+          </li>
+          <li>
+            <img src="mage.png" alt="法師圖示" />
+            <div>
+              <strong>法師</strong>
+              <p>藍色光環持續灼燒附近敵人，靠近時別忘了留退路。</p>
+            </div>
+          </li>
+          <li>
+            <img src="knight.png" alt="騎士圖示" />
+            <div>
+              <strong>騎士</strong>
+              <p>隊伍的保險絲，敵人撞到任何人時會優先犧牲騎士。</p>
+            </div>
+          </li>
+          <li>
+            <img src="enemy.png" alt="敵人圖示" />
+            <div>
+              <strong>敵人</strong>
+              <p>持續追著隊長跑，被擊倒時會補血並累計擊殺數。</p>
+            </div>
+          </li>
+          <li>
+            <img src="item.png" alt="道具圖示" />
+            <div>
+              <strong>招募道具</strong>
+              <p>吃到就會延長隊伍並隨機加入新職業。</p>
+            </div>
+          </li>
+        </ul>
+        <p class="tip">操作方式：WASD / 方向鍵控制；保持隊伍迴旋可避開敵人。</p>
+      </aside>
+    </div>
     <div id="gameOverOverlay" class="overlay hidden">
       <div class="overlay-content">
         <h2>Game Over</h2>
+        <div class="stats">
+          <p>最長隊伍：<span id="maxLengthValue">1</span></p>
+          <p>擊殺數：<span id="finalKillValue">0</span></p>
+        </div>
         <button id="restartBtn">重新開始</button>
       </div>
     </div>

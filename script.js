@@ -4,6 +4,11 @@ const scoreValue = document.getElementById("scoreValue");
 const killValue = document.getElementById("killValue");
 const overlay = document.getElementById("gameOverOverlay");
 const restartBtn = document.getElementById("restartBtn");
+const loaderOverlay = document.getElementById("loaderOverlay");
+const loaderText = document.getElementById("loaderText");
+const loaderBar = document.getElementById("loaderBar");
+const maxLengthValue = document.getElementById("maxLengthValue");
+const finalKillValue = document.getElementById("finalKillValue");
 
 const ARCHER_COOLDOWN = 1000; // 弓箭手冷卻 (毫秒)
 const ITEM_COLOR = "#a855f7"; // 道具顏色 (紫色)
@@ -11,64 +16,90 @@ const LEADER_MAX_HP = 150; // 隊長血量上限
 const LEADER_COLLISION_DAMAGE = 35; // 隊長被撞傷害
 const LEADER_HEAL_ON_KILL = 10; // 擊殺敵人回復量
 
-const ASSETS = {
-  leader: createAsset("leader.png", (x, y, size) => {
-    drawFallbackBlock("#ef4444", () => {
-      ctx.fillStyle = "#fff";
-      ctx.font = `${size * 0.4}px sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("👑", x + size / 2, y + size / 2);
-    }, x, y, size);
-  }),
-  archer: createAsset("archer.png", (x, y, size) => {
-    drawFallbackBlock("#22c55e", () => {
-      ctx.strokeStyle = "#14532d";
-      ctx.lineWidth = 3;
+const assetDefinitions = {
+  leader: {
+    src: "leader.png",
+    fallback: (x, y, size) => {
+      drawFallbackBlock("#ef4444", () => {
+        ctx.fillStyle = "#fff";
+        ctx.font = `${size * 0.4}px sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("👑", x + size / 2, y + size / 2);
+      }, x, y, size);
+    },
+  },
+  archer: {
+    src: "archer.png",
+    fallback: (x, y, size) => {
+      drawFallbackBlock("#22c55e", () => {
+        ctx.strokeStyle = "#14532d";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(x + size * 0.2, y + size * 0.8);
+        ctx.lineTo(x + size * 0.8, y + size * 0.2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(x + size * 0.75, y + size * 0.25, size * 0.15, 0, Math.PI * 2);
+        ctx.stroke();
+      }, x, y, size);
+    },
+  },
+  mage: {
+    src: "mage.png",
+    fallback: (x, y, size) => {
+      drawFallbackBlock("#3b82f6", () => {
+        ctx.fillStyle = "#f0f9ff";
+        ctx.beginPath();
+        ctx.moveTo(x + size / 2, y + size * 0.2);
+        ctx.lineTo(x + size * 0.6, y + size * 0.8);
+        ctx.lineTo(x + size * 0.4, y + size * 0.8);
+        ctx.closePath();
+        ctx.fill();
+      }, x, y, size);
+    },
+  },
+  knight: {
+    src: "knight.png",
+    fallback: (x, y, size) => {
+      drawFallbackBlock("#facc15", () => {
+        ctx.fillStyle = "#78350f";
+        ctx.fillRect(x + size * 0.3, y + size * 0.2, size * 0.4, size * 0.5);
+        ctx.beginPath();
+        ctx.arc(x + size * 0.5, y + size * 0.4, size * 0.2, Math.PI, 0);
+        ctx.fill();
+      }, x, y, size);
+    },
+  },
+  enemy: {
+    src: "enemy.png",
+    fallback: (x, y, size) => {
+      drawFallbackBlock("#efefef", () => {
+        ctx.fillStyle = "#0f172a";
+        ctx.beginPath();
+        ctx.arc(x + size / 2, y + size / 2, size * 0.25, 0, Math.PI * 2);
+        ctx.fill();
+      }, x, y, size);
+    },
+  },
+  item: {
+    src: "item.png",
+    fallback: (x, y, size) => {
+      ctx.fillStyle = ITEM_COLOR;
       ctx.beginPath();
-      ctx.moveTo(x + size * 0.2, y + size * 0.8);
-      ctx.lineTo(x + size * 0.8, y + size * 0.2);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(x + size * 0.75, y + size * 0.25, size * 0.15, 0, Math.PI * 2);
-      ctx.stroke();
-    }, x, y, size);
-  }),
-  mage: createAsset("mage.png", (x, y, size) => {
-    drawFallbackBlock("#3b82f6", () => {
-      ctx.fillStyle = "#f0f9ff";
-      ctx.beginPath();
-      ctx.moveTo(x + size / 2, y + size * 0.2);
-      ctx.lineTo(x + size * 0.6, y + size * 0.8);
-      ctx.lineTo(x + size * 0.4, y + size * 0.8);
-      ctx.closePath();
+      ctx.arc(x + size / 2, y + size / 2, size * 0.35, 0, Math.PI * 2);
       ctx.fill();
-    }, x, y, size);
-  }),
-  knight: createAsset("knight.png", (x, y, size) => {
-    drawFallbackBlock("#facc15", () => {
-      ctx.fillStyle = "#78350f";
-      ctx.fillRect(x + size * 0.3, y + size * 0.2, size * 0.4, size * 0.5);
-      ctx.beginPath();
-      ctx.arc(x + size * 0.5, y + size * 0.4, size * 0.2, Math.PI, 0);
-      ctx.fill();
-    }, x, y, size);
-  }),
-  enemy: createAsset("enemy.png", (x, y, size) => {
-    drawFallbackBlock("#efefef", () => {
-      ctx.fillStyle = "#0f172a";
-      ctx.beginPath();
-      ctx.arc(x + size / 2, y + size / 2, size * 0.25, 0, Math.PI * 2);
-      ctx.fill();
-    }, x, y, size);
-  }),
-  item: createAsset("item.png", (x, y, size) => {
-    ctx.fillStyle = ITEM_COLOR;
-    ctx.beginPath();
-    ctx.arc(x + size / 2, y + size / 2, size * 0.35, 0, Math.PI * 2);
-    ctx.fill();
-  }),
+    },
+  },
 };
+
+const TOTAL_ASSETS = Object.keys(assetDefinitions).length;
+const ASSETS = Object.fromEntries(
+  Object.entries(assetDefinitions).map(([key, def]) => [
+    key,
+    createAsset(def.src, def.fallback),
+  ])
+);
 
 const SEGMENT_TYPES = ["archer", "mage", "knight"];
 
@@ -88,12 +119,22 @@ let isGameOver = false;
 let animationId = null;
 let leaderHP = LEADER_MAX_HP;
 let killCount = 0;
+let maxLengthThisRun = 1;
+let assetsLoaded = 0;
+let assetsReady = false;
 
 function createAsset(src, fallback) {
   const img = new Image();
   let loaded = false;
-  img.onload = () => (loaded = true);
-  img.onerror = () => (loaded = false);
+  let counted = false;
+  img.onload = () => {
+    loaded = true;
+    markAssetComplete();
+  };
+  img.onerror = () => {
+    loaded = false;
+    markAssetComplete();
+  };
   img.src = src;
   return {
     draw(x, y, size) {
@@ -104,6 +145,32 @@ function createAsset(src, fallback) {
       }
     },
   };
+
+  function markAssetComplete() {
+    if (counted) return;
+    counted = true;
+    assetsLoaded += 1;
+    updateLoaderProgress();
+    if (assetsLoaded >= TOTAL_ASSETS) {
+      finishLoadingPhase();
+    }
+  }
+}
+
+function updateLoaderProgress() {
+  if (!loaderBar || !loaderText) return;
+  const ratio = TOTAL_ASSETS > 0 ? assetsLoaded / TOTAL_ASSETS : 1;
+  loaderBar.style.width = `${Math.min(100, ratio * 100)}%`;
+  loaderText.textContent = `載入資產中... ${Math.round(ratio * 100)}%`;
+}
+
+function finishLoadingPhase() {
+  if (assetsReady) return;
+  assetsReady = true;
+  setTimeout(() => {
+    loaderOverlay?.classList.add("hidden");
+    startGame();
+  }, 200);
 }
 
 function drawFallbackBlock(color, drawSymbol, x, y, size) {
@@ -113,6 +180,7 @@ function drawFallbackBlock(color, drawSymbol, x, y, size) {
 }
 
 function startGame() {
+  if (!assetsReady) return;
   snake = [
     {
       x: Math.floor(gridWidth / 2),
@@ -136,6 +204,9 @@ function startGame() {
   lastMoveTime = 0;
   lastEnemySpawn = 0;
   leaderHP = LEADER_MAX_HP;
+  maxLengthThisRun = snake.length;
+  maxLengthValue.textContent = snake.length;
+  finalKillValue.textContent = killCount;
   if (animationId) cancelAnimationFrame(animationId);
   animationId = requestAnimationFrame(gameLoop);
 }
@@ -231,6 +302,9 @@ function moveSnake(timestamp) {
   }
 
   scoreValue.textContent = snake.length;
+  if (snake.length > maxLengthThisRun) {
+    maxLengthThisRun = snake.length;
+  }
 }
 
 function handleArcherAttacks(timestamp) {
@@ -549,7 +623,10 @@ function rectCircleCollide(rect, circle) {
 }
 
 function triggerGameOver() {
+  if (isGameOver) return;
   isGameOver = true;
+  maxLengthValue.textContent = maxLengthThisRun;
+  finalKillValue.textContent = killCount;
   overlay.classList.remove("hidden");
 }
 
@@ -737,7 +814,13 @@ window.addEventListener("keydown", (event) => {
   nextDirection = dir;
 });
 
-restartBtn.addEventListener("click", startGame);
+restartBtn.addEventListener("click", () => {
+  if (!assetsReady) return;
+  startGame();
+});
 
-startGame();
+updateLoaderProgress();
+if (TOTAL_ASSETS === 0) {
+  finishLoadingPhase();
+}
 

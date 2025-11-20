@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>勇者貪食蛇 RPG 玩家手冊</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #050916;
+        --card: #111827;
+        --accent: #f97316;
+        --text: #f3f4f6;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+        background: radial-gradient(circle at 20% 20%, #1e3a8a 0%, var(--bg) 55%);
+        color: var(--text);
+        line-height: 1.6;
+      }
+      header {
+        padding: 48px 24px 24px;
+        text-align: center;
+      }
+      header h1 {
+        margin: 0;
+        font-size: clamp(2rem, 5vw, 3rem);
+      }
+      header p {
+        margin-top: 8px;
+        opacity: 0.8;
+      }
+      main {
+        max-width: 960px;
+        margin: 0 auto 60px;
+        padding: 0 24px;
+        display: grid;
+        gap: 24px;
+      }
+      section {
+        background: rgba(17, 24, 39, 0.85);
+        border-radius: 20px;
+        padding: 24px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(8px);
+      }
+      section h2 {
+        margin-top: 0;
+        letter-spacing: 0.08em;
+        font-size: 1.4rem;
+      }
+      .hero-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+      }
+      .hero-card {
+        background: var(--card);
+        border-radius: 18px;
+        padding: 16px;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        align-items: center;
+        text-align: center;
+      }
+      .hero-card img {
+        width: 120px;
+        height: 120px;
+        border-radius: 16px;
+        object-fit: cover;
+        border: 2px solid rgba(255, 255, 255, 0.12);
+        background: #0f172a;
+      }
+      .controls {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+      }
+      .controls div {
+        border: 1px solid rgba(148, 163, 184, 0.4);
+        border-radius: 14px;
+        padding: 12px;
+        background: rgba(15, 23, 42, 0.8);
+      }
+      .tips-list {
+        display: grid;
+        gap: 10px;
+      }
+      .tips-list li {
+        list-style: "★ ";
+        padding-left: 8px;
+      }
+      .screenshot {
+        border-radius: 20px;
+        overflow: hidden;
+        position: relative;
+        max-height: 320px;
+      }
+      .screenshot img {
+        width: 100%;
+        display: block;
+        filter: saturate(1.2);
+      }
+      footer {
+        text-align: center;
+        padding: 24px;
+        opacity: 0.8;
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>勇者貪食蛇 RPG 玩家說明書</h1>
+      <p>像是帶著迷你冒險隊伍在棋盤上跳舞，用智慧與節奏躲過無情追擊。</p>
+    </header>
+
+    <main>
+      <section>
+        <h2>遊戲概念</h2>
+        <p>
+          想像一條由勇者排成的彩色列車，隊長就是車頭，帶著大家一格一格前進。
+          每吃到一道具，就像招募到新的夥伴，整列列車也會跟著變長。
+          同時，敵人像是不停追車的黑影，持續朝隊長衝來，必須靠職業技能保護隊伍。
+        </p>
+      </section>
+
+      <section>
+        <h2>勇者陣容</h2>
+        <div class="hero-grid">
+          <article class="hero-card">
+            <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><rect width='120' height='120' rx='18' fill='%23ef4444'/><text x='60' y='72' font-size='48' text-anchor='middle' fill='white'>👑</text></svg>" alt="隊長圖示" />
+            <h3>隊長</h3>
+            <p>由你直接操控，就像列車司機。任何碰撞都是致命打擊。</p>
+          </article>
+
+          <article class="hero-card">
+            <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><rect width='120' height='120' rx='18' fill='%2322c55e'/><path d='M25 90 L95 30' stroke='%2314532d' stroke-width='8' stroke-linecap='round'/><circle cx='90' cy='30' r='10' stroke='%2314532d' stroke-width='6' fill='none'/></svg>" alt="弓箭手圖示" />
+            <h3>弓箭手</h3>
+            <p>就像後座狙擊手，每秒自動瞄準最近的敵人發射箭矢。</p>
+          </article>
+
+          <article class="hero-card">
+            <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><rect width='120' height='120' rx='18' fill='%233b82f6'/><polygon points='60,24 72,96 48,96' fill='%23e0f2fe'/><circle cx='60' cy='60' r='40' fill='none' stroke='%2393c5fd' stroke-width='6' stroke-opacity='0.6'/></svg>" alt="法師圖示" />
+            <h3>法師</h3>
+            <p>像攜帶移動風扇，走到哪裡就在哪裡灑出藍色光環灼燒敵人。</p>
+          </article>
+
+          <article class="hero-card">
+            <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><rect width='120' height='120' rx='18' fill='%23facc15'/><path d='M40 25 H80 V75 Q60 95 40 75Z' fill='%2378350f'/></svg>" alt="騎士圖示" />
+            <h3>騎士</h3>
+            <p>黃金盾牌守護著隊伍，一旦與敵人相撞就同時粉碎。</p>
+          </article>
+        </div>
+      </section>
+
+      <section>
+        <h2>操作方式</h2>
+        <div class="controls">
+          <div>
+            <strong>方向鍵 / WASD</strong>
+            <p>改變列車前進方向。不可立即往相反方向折返，避免打結。</p>
+          </div>
+          <div>
+            <strong>重新開始</strong>
+            <p>Game Over 視窗中的按鈕會重設整個旅程。</p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>得分與進度</h2>
+        <p>每吃一個紫色道具就會：</p>
+        <ul>
+          <li>隊伍長度 +1（也是分數）。</li>
+          <li>隨機加入弓箭手、法師或騎士。</li>
+          <li>在畫面空地生成下一個道具。</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>生存小撇步</h2>
+        <ul class="tips-list">
+          <li>讓弓箭手排在中段，能有更久的視線輸出。</li>
+          <li>法師貼近敵人時記得留退路，避免自己也被包圍。</li>
+          <li>騎士適合放在尾巴，專門處理追上的敵人。</li>
+          <li>當敵人太多時，繞大圈把他們拉長，爭取技能冷卻時間。</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>視覺搶先看</h2>
+        <div class="screenshot">
+          <img
+            src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 400'><rect width='800' height='400' fill='%230b1120'/><rect x='80' y='160' width='80' height='80' rx='12' fill='%23ef4444'/><rect x='160' y='160' width='80' height='80' rx='12' fill='%2322c55e'/><rect x='240' y='160' width='80' height='80' rx='12' fill='%233b82f6'/><rect x='320' y='160' width='80' height='80' rx='12' fill='%23facc15'/><circle cx='560' cy='200' r='36' fill='%23e2e8f0'/><circle cx='400' cy='80' r='20' fill='%23a855f7'/></svg>"
+            alt="遊戲概念示意圖"
+          />
+        </div>
+      </section>
+    </main>
+
+    <footer>© 2025 勇者貪食蛇 RPG 玩家手冊</footer>
+  </body>
+</html>
+
+

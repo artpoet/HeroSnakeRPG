@@ -1,0 +1,21 @@
+# 系統檔
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# 快取與封裝
+*.log
+*.tmp
+*.cache
+
+# VS Code / Cursor
+.history/
+.cursor/
+.vscode/
+
+# 其他不需版控的產物
+dist/
+build/
+node_modules/
+

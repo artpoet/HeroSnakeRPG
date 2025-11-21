@@ -362,12 +362,21 @@ function moveSnake(timestamp) {
   // 更新面向（只在左右移動時）
   if (direction.x !== 0) {
     facing = direction.x > 0 ? 1 : -1;
+    // 所有勇者都跟 leader 保持相同面向
+    snake.forEach((segment) => {
+      segment.facing = facing;
+    });
   }
   const head = snake[0];
   const nextX = head.x + direction.x;
   const nextY = head.y + direction.y;
 
+  // 邊界檢測：確保下一個位置在有效範圍內
+  // 有效範圍：x 從 0 到 gridWidth-1，y 從 0 到 gridHeight-1
+  // 使用嚴格的大於檢查，確保只有在真正超出邊界時才觸發
   if (nextX < 0 || nextY < 0 || nextX >= gridWidth || nextY >= gridHeight) {
+    // 只有在真正超出邊界時才觸發遊戲結束
+    // 如果只是到達最後一格，不應該觸發（但實際上 >= 已經包含了這個情況）
     return triggerGameOver();
   }
 
@@ -422,6 +431,7 @@ function moveSnake(timestamp) {
       role: newRole,
       lastShot: 0,
       borderColor: getCurrentPlayerColor(), // 使用當前玩家的顏色
+      facing: facing, // 新加入的勇者也要跟 leader 保持相同面向
     });
   }
 
@@ -777,6 +787,18 @@ function checkIfInLeaderboard() {
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  // 繪製邊界線，讓玩家清楚看到遊戲區域的邊界
+  // 邊界線應該對應最後一格的邊界，而不是 gridWidth * GRID_SIZE
+  // 有效的網格座標是 0 到 gridWidth-1，所以最後一格的右邊界在 (gridWidth-1) * GRID_SIZE + GRID_SIZE
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+  ctx.lineWidth = 3;
+  ctx.setLineDash([6, 4]);
+  // 邊界線應該從 (0,0) 開始，到最後一格的邊界結束
+  const boundaryX = (gridWidth - 1) * GRID_SIZE + GRID_SIZE;
+  const boundaryY = (gridHeight - 1) * GRID_SIZE + GRID_SIZE;
+  ctx.strokeRect(0, 0, boundaryX, boundaryY);
+  ctx.setLineDash([]);
+
   if (item) {
     const x = item.x * GRID_SIZE;
     const y = item.y * GRID_SIZE;
@@ -803,33 +825,8 @@ function draw() {
         );
       }
     } else if (segment.role && ASSETS[segment.role]) {
-      // 其他勇者根據前一個 segment 的位置決定面向
-      let segmentFacing = facing;
-      if (index > 0) {
-        const prevSegment = snake[index - 1];
-        const currentX = segment.x;
-        const prevX = prevSegment.x;
-        if (currentX !== prevX) {
-          // 有左右移動，根據位置決定面向
-          segmentFacing = currentX > prevX ? 1 : -1;
-        } else {
-          // 沒有左右移動（上下移動），保持前一個 segment 的 facing
-          if (prevSegment.facing !== undefined) {
-            segmentFacing = prevSegment.facing;
-          } else if (index > 1) {
-            // 如果前一個也沒有 facing，繼續往前找
-            let foundFacing = facing;
-            for (let j = index - 1; j >= 0; j--) {
-              if (snake[j].facing !== undefined) {
-                foundFacing = snake[j].facing;
-                break;
-              }
-            }
-            segmentFacing = foundFacing;
-          }
-        }
-      }
-      segment.facing = segmentFacing; // 保存面向供下次使用
+      // 所有勇者都跟 leader 保持相同面向
+      const segmentFacing = segment.facing !== undefined ? segment.facing : facing;
       ASSETS[segment.role].draw(x, y, GRID_SIZE, segmentFacing);
     } else {
       drawFallbackBlock("#64748b", () => {}, x, y, GRID_SIZE);

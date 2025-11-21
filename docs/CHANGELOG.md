@@ -10,6 +10,9 @@
 - 騎士調整為全隊守護者：只要仍有騎士，敵人撞到任何隊員都會由騎士代為犧牲；無騎士時才輪到被撞隊員受害。
 - 新增擊殺計數 UI 與效果，統計所有被擊倒的敵人並同步顯示在 HUD。
 - 增加資產載入條、右側快速指南與 Game Over 統計（最長隊伍與擊殺數），改善第一次進入時的理解與回饋。
+- 為解決本地端 CORS 問題，將所有檔案移回根目錄：`index.html`、`style.css`、`script.js`、`firebase-config.js` 與所有圖片檔案直接放在專案根目錄，移除所有資料夾路徑引用。
+- 最終重構：將 Firebase 設定與初始化邏輯完全整合到 `index.html`，移除 `firebase-config.js` 與所有 ES Module 引用，改為使用全局變數暴露，確保在 `file://` 協議下也能正常運行。
+- 清理專案結構：刪除 `public/` 資料夾中的舊檔案（`index.html`, `scripts/main.js`, `styles/main.css`），避免與根目錄檔案混淆。目前所有遊戲檔案（HTML、CSS、JS、圖片）都在根目錄，文件檔案保留在 `docs/` 資料夾。
 - 導入 Firebase Firestore 全球排行榜：Game Over 可輸入名字並上傳分數，右側面板即時顯示前 10 名成績。
 - 重構檔案結構：所有靜態資源集中於 `public/`，文件移至 `docs/`，為未來連線化與自動化建置預作準備。
 

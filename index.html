@@ -4,7 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>勇者貪食蛇 RPG</title>
-    <link rel="stylesheet" href="./styles/main.css" />
+    <link rel="stylesheet" href="style.css" />
+    <script src="guide-config.js"></script>
     <script>
       const GRID_SIZE = 40; // 網格大小 (像素)，決定角色與地圖格子的尺寸
       const GAME_SPEED = 150; // 遊戲速度 (毫秒)，數值越小移動越快
@@ -16,6 +17,45 @@
       const AURA_DAMAGE = 0.5; // 法師光環每幀傷害
       const ARROW_DAMAGE = 10; // 弓箭單發傷害
       const ENEMY_HP = 20; // 敵人血量
+    </script>
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+      import {
+        getFirestore,
+        collection,
+        addDoc,
+        query,
+        orderBy,
+        limit,
+        onSnapshot,
+      } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyC1p5BWY1ygxY3_HR25m7uGQo41LBE50dM",
+        authDomain: "herosnakerpg.firebaseapp.com",
+        projectId: "herosnakerpg",
+        storageBucket: "herosnakerpg.firebasestorage.app",
+        messagingSenderId: "285447440332",
+        appId: "1:285447440332:web:8e8214fa4564b0cf1aff69",
+        measurementId: "G-RV2GN5VQMJ",
+      };
+
+      const firebaseApp = initializeApp(firebaseConfig);
+      const db = getFirestore(firebaseApp);
+      const leaderboardRef = collection(db, "leaderboard");
+
+      window.firebaseDb = db;
+      window.firebaseLeaderboardRef = leaderboardRef;
+      window.firebaseAddDoc = addDoc;
+      window.firebaseQuery = query;
+      window.firebaseOrderBy = orderBy;
+      window.firebaseLimit = limit;
+      window.firebaseOnSnapshot = onSnapshot;
+      window.firebaseReady = true;
+      
+      if (window.subscribeLeaderboard) {
+        window.subscribeLeaderboard();
+      }
     </script>
   </head>
   <body>
@@ -35,55 +75,7 @@
       </div>
     </div>
     <div class="game-wrapper">
-      <canvas id="gameCanvas" width="800" height="600"></canvas>
-      <aside class="guide-panel">
-        <h2>快速指引</h2>
-        <p>右側圖鑑讓你在遊戲開始前就知道每位勇者的能力與敵人的樣貌。</p>
-        <ul class="icon-list">
-          <li>
-            <img src="./assets/images/leader.png" alt="隊長圖示" />
-            <div>
-              <strong>隊長</strong>
-              <p>由你操控的蛇頭，血量歸零才會失敗。</p>
-            </div>
-          </li>
-          <li>
-            <img src="./assets/images/archer.png" alt="弓箭手圖示" />
-            <div>
-              <strong>弓箭手</strong>
-              <p>自動鎖定射程內最近敵人，提供穩定輸出。</p>
-            </div>
-          </li>
-          <li>
-            <img src="./assets/images/mage.png" alt="法師圖示" />
-            <div>
-              <strong>法師</strong>
-              <p>藍色光環持續灼燒附近敵人，靠近時別忘了留退路。</p>
-            </div>
-          </li>
-          <li>
-            <img src="./assets/images/knight.png" alt="騎士圖示" />
-            <div>
-              <strong>騎士</strong>
-              <p>隊伍的保險絲，敵人撞到任何人時會優先犧牲騎士。</p>
-            </div>
-          </li>
-          <li>
-            <img src="./assets/images/enemy.png" alt="敵人圖示" />
-            <div>
-              <strong>敵人</strong>
-              <p>持續追著隊長跑，被擊倒時會補血並累計擊殺數。</p>
-            </div>
-          </li>
-          <li>
-            <img src="./assets/images/item.png" alt="道具圖示" />
-            <div>
-              <strong>招募道具</strong>
-              <p>吃到就會延長隊伍並隨機加入新職業。</p>
-            </div>
-          </li>
-        </ul>
-        <p class="tip">操作方式：WASD / 方向鍵控制；保持隊伍迴旋可避開敵人。</p>
+      <aside class="leaderboard-panel">
         <div class="leaderboard-card">
           <div class="leaderboard-header">
             <h3>全球排行榜</h3>
@@ -93,6 +85,10 @@
             <li>載入中...</li>
           </ol>
         </div>
+      </aside>
+      <canvas id="gameCanvas" width="800" height="600"></canvas>
+      <aside class="guide-panel" id="guidePanel">
+        <!-- 內容將由 JavaScript 動態載入 -->
       </aside>
     </div>
     <div id="gameOverOverlay" class="overlay hidden">
@@ -116,7 +112,6 @@
         <button id="restartBtn">重新開始</button>
       </div>
     </div>
-    <script type="module" src="./scripts/main.js"></script>
+    <script src="script.js"></script>
   </body>
 </html>
-

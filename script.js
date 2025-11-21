@@ -1,14 +1,3 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-import {
-  getFirestore,
-  collection,
-  addDoc,
-  query,
-  orderBy,
-  limit,
-  onSnapshot,
-} from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
-
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 const scoreValue = document.getElementById("scoreValue");
@@ -30,20 +19,11 @@ const ITEM_COLOR = "#a855f7"; // 道具顏色 (紫色)
 const LEADER_MAX_HP = 150; // 隊長血量上限
 const LEADER_COLLISION_DAMAGE = 35; // 隊長被撞傷害
 const LEADER_HEAL_ON_KILL = 10; // 擊殺敵人回復量
-const ASSET_BASE_PATH = "./assets/images/";
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyC1p5BWY1ygxY3_HR25m7uGQo41LBE50dM",
-  authDomain: "herosnakerpg.firebaseapp.com",
-  projectId: "herosnakerpg",
-  storageBucket: "herosnakerpg.firebasestorage.app",
-  messagingSenderId: "285447440332",
-  appId: "1:285447440332:web:8e8214fa4564b0cf1aff69",
-  measurementId: "G-RV2GN5VQMJ",
-};
+const ASSET_BASE_PATH = "";
 
 const assetDefinitions = {
   leader: {
-    src: `${ASSET_BASE_PATH}leader.png`,
+    src: `leader.png`,
     fallback: (x, y, size) => {
       drawFallbackBlock("#ef4444", () => {
         ctx.fillStyle = "#fff";
@@ -55,7 +35,7 @@ const assetDefinitions = {
     },
   },
   archer: {
-    src: `${ASSET_BASE_PATH}archer.png`,
+    src: `archer.png`,
     fallback: (x, y, size) => {
       drawFallbackBlock("#22c55e", () => {
         ctx.strokeStyle = "#14532d";
@@ -71,7 +51,7 @@ const assetDefinitions = {
     },
   },
   mage: {
-    src: `${ASSET_BASE_PATH}mage.png`,
+    src: `mage.png`,
     fallback: (x, y, size) => {
       drawFallbackBlock("#3b82f6", () => {
         ctx.fillStyle = "#f0f9ff";
@@ -85,7 +65,7 @@ const assetDefinitions = {
     },
   },
   knight: {
-    src: `${ASSET_BASE_PATH}knight.png`,
+    src: `knight.png`,
     fallback: (x, y, size) => {
       drawFallbackBlock("#facc15", () => {
         ctx.fillStyle = "#78350f";
@@ -97,7 +77,7 @@ const assetDefinitions = {
     },
   },
   enemy: {
-    src: `${ASSET_BASE_PATH}enemy.png`,
+    src: `enemy.png`,
     fallback: (x, y, size) => {
       drawFallbackBlock("#efefef", () => {
         ctx.fillStyle = "#0f172a";
@@ -108,7 +88,7 @@ const assetDefinitions = {
     },
   },
   item: {
-    src: `${ASSET_BASE_PATH}item.png`,
+    src: `item.png`,
     fallback: (x, y, size) => {
       ctx.fillStyle = ITEM_COLOR;
       ctx.beginPath();
@@ -150,10 +130,18 @@ let assetsReady = false;
 let isUploading = false;
 let hasUploadedThisRun = false;
 
-const firebaseApp = initializeApp(FIREBASE_CONFIG);
-const db = getFirestore(firebaseApp);
-const leaderboardRef = collection(db, "leaderboard");
-subscribeLeaderboard();
+window.subscribeLeaderboard = subscribeLeaderboard;
+
+if (window.firebaseReady && window.firebaseLeaderboardRef) {
+  subscribeLeaderboard();
+} else {
+  const checkFirebase = setInterval(() => {
+    if (window.firebaseReady && window.firebaseLeaderboardRef) {
+      subscribeLeaderboard();
+      clearInterval(checkFirebase);
+    }
+  }, 100);
+}
 
 function createAsset(src, fallback) {
   const img = new Image();
@@ -900,9 +888,10 @@ async function handleScoreUpload() {
   uploadStatus.textContent = "上傳中...";
   uploadStatus.className = "upload-status";
   try {
-    await addDoc(leaderboardRef, {
+    await window.firebaseAddDoc(window.firebaseLeaderboardRef, {
       name,
       score: maxLengthThisRun,
+      kills: killCount,
       date: new Date().toISOString(),
     });
     hasUploadedThisRun = true;
@@ -919,13 +908,13 @@ async function handleScoreUpload() {
 }
 
 function subscribeLeaderboard() {
-  if (!leaderboardList) return;
-  const leaderboardQuery = query(
-    leaderboardRef,
-    orderBy("score", "desc"),
-    limit(10)
+  if (!leaderboardList || !window.firebaseLeaderboardRef) return;
+  const leaderboardQuery = window.firebaseQuery(
+    window.firebaseLeaderboardRef,
+    window.firebaseOrderBy("kills", "desc"),
+    window.firebaseLimit(10)
   );
-  onSnapshot(
+  window.firebaseOnSnapshot(
     leaderboardQuery,
     (snapshot) => {
       if (snapshot.empty) {
@@ -936,10 +925,13 @@ function subscribeLeaderboard() {
       snapshot.docs.forEach((doc) => {
         const data = doc.data();
         const li = document.createElement("li");
-        const dateLabel = data.date
-          ? new Date(data.date).toLocaleDateString("zh-TW")
-          : "";
-        li.innerHTML = `<strong>${escapeHtml(data.name ?? "無名勇者")}</strong><span>${data.score ?? 0} 格 · ${dateLabel}</span>`;
+        const kills = data.kills ?? 0;
+        const score = data.score ?? 0;
+        li.innerHTML = `
+          <span class="lb-name">${escapeHtml(data.name ?? "無名勇者")}</span>
+          <span class="lb-kills">${kills} 擊殺</span>
+          <span class="lb-score">${score} 格</span>
+        `;
         leaderboardList.appendChild(li);
       });
     },
@@ -957,5 +949,51 @@ function escapeHtml(text) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+// 渲染快速指引面板
+function renderGuidePanel() {
+  const guidePanel = document.getElementById("guidePanel");
+  if (!guidePanel || !window.GUIDE_CONFIG) {
+    console.warn("Guide panel or config not found");
+    return;
+  }
+
+  const config = window.GUIDE_CONFIG;
+  
+  let html = `<h2>${escapeHtml(config.title || "快速指引")}</h2>`;
+  
+  if (config.intro) {
+    html += `<p>${escapeHtml(config.intro)}</p>`;
+  }
+  
+  if (config.items && config.items.length > 0) {
+    html += `<ul class="icon-list">`;
+    config.items.forEach((item) => {
+      html += `
+        <li>
+          <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.alt || "")}" />
+          <div>
+            <strong>${escapeHtml(item.name)}</strong>
+            <p>${escapeHtml(item.description)}</p>
+          </div>
+        </li>
+      `;
+    });
+    html += `</ul>`;
+  }
+  
+  if (config.tip) {
+    html += `<p class="tip">${escapeHtml(config.tip)}</p>`;
+  }
+  
+  guidePanel.innerHTML = html;
+}
+
+// 頁面載入時渲染快速指引
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", renderGuidePanel);
+} else {
+  renderGuidePanel();
 }
 

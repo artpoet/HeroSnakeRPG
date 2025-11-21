@@ -50,8 +50,8 @@ window.UPGRADE_CONFIG = {
       auraDamage: {
         name: "施法傷害",
         description: "法師光環每幀傷害 +{value}",
-        baseValue: 0.5,     // 基礎傷害（AURA_DAMAGE）
-        increment: 0.5,      // 每次升級增加的值
+        baseValue: 3,       // 基礎傷害（AURA_DAMAGE）
+        increment: 3,       // 每次升級增加的值
         maxLevel: 5,
         icon: "mage.png",
       },

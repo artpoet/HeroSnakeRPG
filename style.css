@@ -1,14 +1,16 @@
 * {
   box-sizing: border-box;
+  user-select: none; /* 防止長按選取文字 */
+  -webkit-user-select: none;
 }
 
 html, body {
   margin: 0;
   padding: 0;
+  width: 100%;
   height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
-  touch-action: manipulation; /* 防止雙擊縮放 */
+  overflow: hidden; /* 防止滾動 */
+  touch-action: none; /* 完全禁止瀏覽器預設觸控行為 */
 }
 
 body {
@@ -16,19 +18,183 @@ body {
   font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
   color: #fdfdfd;
   position: relative;
-  min-height: 100vh;
+}
+
+/* ========== 遊戲畫面 ========== */
+.game-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.game-screen.hidden {
+  display: none;
+}
+
+canvas#gameCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #111827;
+}
+
+/* ========== HUD 層 (懸浮介面) ========== */
+.hud-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* 讓點擊穿透到 Canvas */
+  z-index: 10;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* 讓 HUD 內的按鈕和互動元素恢復點擊 */
+.hud-layer > * {
+  pointer-events: auto;
+}
+
+/* 小地圖容器 */
+.minimap-container {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  width: 150px;
+  height: 150px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+canvas#minimap {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* 頂部狀態列 (分數、等級) */
+.top-stats {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 240px;
+  pointer-events: none; /* 這裡不需要點擊 */
+}
+
+.score-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.score-pill {
+  background: rgba(15, 23, 42, 0.8);
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  color: #fdfdfd;
+  white-space: nowrap;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.level-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: rgba(15, 23, 42, 0.8);
+  padding: 4px 8px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.level-badge {
+  font-weight: bold;
+  color: #4ade80;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
+.hud-exp-bar {
+  flex: 1;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hud-exp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4ade80, #22c55e);
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+.hud-exp-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.65rem;
+  color: #fff;
+  text-shadow: 0 0 2px rgba(0,0,0,0.8);
+  white-space: nowrap;
+}
+
+/* 右上功能按鈕 */
+.top-controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.control-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: rgba(15, 23, 42, 0.9);
+  color: #f1f5f9;
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.control-btn:active {
+  transform: scale(0.9);
+  background: rgba(30, 41, 59, 1);
 }
 
 /* ========== 主選單 (Home Screen) ========== */
 .home-screen {
   position: fixed;
   inset: 0;
-  background: #0c0f1b;
+  background: #0c0f1b; /* 後續可以用 canvas 模糊圖當背景 */
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 1000;
-  overflow-y: auto;
 }
 
 .home-screen.hidden {
@@ -37,7 +203,7 @@ body {
 
 .home-content {
   width: 100%;
-  max-width: 500px;
+  max-width: 400px;
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -46,7 +212,7 @@ body {
 }
 
 .home-title {
-  font-size: 2rem;
+  font-size: 2.5rem;
   margin: 0;
   text-align: center;
   color: #4ade80;
@@ -58,7 +224,7 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 200px;
+  min-height: 100px;
 }
 
 .home-menu {
@@ -92,7 +258,6 @@ body {
   color: #f1f5f9;
   font-size: 1rem;
   width: 100%;
-  touch-action: manipulation;
 }
 
 #homePlayerNameInput:focus {
@@ -116,8 +281,7 @@ body {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  min-height: 48px; /* 觸控友善的最小高度 */
-  touch-action: manipulation;
+  min-height: 52px;
 }
 
 .home-btn.primary {
@@ -132,214 +296,12 @@ body {
   border: 2px solid rgba(148, 163, 184, 0.3);
 }
 
-.home-btn:hover {
-  transform: translateY(-2px);
-}
-
 .home-btn:active {
-  transform: translateY(0);
-  opacity: 0.9;
+  transform: scale(0.98);
 }
 
-/* ========== 遊戲畫面 ========== */
-.game-screen {
-  width: 100%;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 12px;
-  gap: 12px;
-}
-
-.game-screen.hidden {
-  display: none;
-}
-
-.ui {
-  text-align: center;
-  width: 100%;
-  max-width: 100%;
-}
-
-.score {
-  font-size: 1rem;
-  margin-top: 4px;
-}
-
-.scoreboard {
-  display: flex;
-  gap: 16px;
-  justify-content: center;
-  margin-top: 8px;
-  flex-wrap: wrap;
-}
-
-.level-system {
-  margin-top: 12px;
-  width: 100%;
-  max-width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: center;
-}
-
-.level-info {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #4ade80;
-}
-
-.exp-bar-container {
-  width: 100%;
-  max-width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 0 12px;
-}
-
-.exp-bar-label {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.85rem;
-  color: #cbd5e1;
-}
-
-.exp-bar {
-  width: 100%;
-  height: 20px;
-  background: rgba(15, 23, 42, 0.8);
-  border: 2px solid rgba(74, 222, 128, 0.3);
-  border-radius: 10px;
-  overflow: hidden;
-  position: relative;
-}
-
-.exp-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #4ade80, #22c55e);
-  width: 0%;
-  transition: width 0.3s ease;
-  box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
-}
-
-/* ========== Canvas 容器 ========== */
-.canvas-container {
-  position: relative;
-  width: 100%;
-  max-width: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  touch-action: none; /* 防止觸控時畫面捲動 */
-}
-
-canvas {
-  background: #111827;
-  border: 3px solid #4ade80;
-  border-radius: 12px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
-  width: 100%;
-  max-width: 100%;
-  height: auto;
-  aspect-ratio: 4 / 3; /* 維持 800:600 比例 */
-  max-height: calc(100vh - 200px); /* 預留空間給 UI */
-}
-
-/* ========== 遊戲中快捷按鈕 ========== */
-.game-controls {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  display: flex;
-  gap: 8px;
-  z-index: 10;
-}
-
-.control-btn {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  background: rgba(15, 23, 42, 0.9);
-  color: #f1f5f9;
-  font-size: 1.2rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  touch-action: manipulation;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-.control-btn:hover {
-  background: rgba(15, 23, 42, 1);
-  border-color: #4ade80;
-  transform: scale(1.1);
-}
-
-.control-btn:active {
-  transform: scale(0.95);
-}
-
-/* ========== 倒數計時 ========== */
-.countdown-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: rgba(0, 0, 0, 0.7);
-  z-index: 1500;
-  pointer-events: none;
-}
-
-.countdown-overlay.hidden {
-  display: none;
-}
-
-.countdown-content {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.countdown-number {
-  font-size: 8rem;
-  font-weight: 900;
-  color: #4ade80;
-  text-shadow: 
-    0 0 20px rgba(74, 222, 128, 0.8),
-    0 0 40px rgba(74, 222, 128, 0.6),
-    0 0 60px rgba(74, 222, 128, 0.4);
-  animation: countdownPulse 0.5s ease-out;
-}
-
-@keyframes countdownPulse {
-  0% {
-    transform: scale(0.5);
-    opacity: 0;
-  }
-  50% {
-    transform: scale(1.2);
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-@media (max-width: 768px) {
-  .countdown-number {
-    font-size: 6rem;
-  }
-}
-
-/* ========== Modal 彈窗 ========== */
-.modal {
+/* ========== Modals & Overlays ========== */
+.modal, .overlay {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.75);
@@ -348,548 +310,299 @@ canvas {
   align-items: center;
   z-index: 2000;
   padding: 20px;
-  overflow-y: auto;
 }
 
-.modal.hidden {
+.modal.hidden, .overlay.hidden {
   display: none;
 }
 
-.modal-content {
+.modal-content, .overlay-content {
   background: #1f2937;
   border-radius: 16px;
   width: 100%;
-  max-width: 600px;
-  max-height: 90vh;
+  max-width: 500px;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
   overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px 24px;
+  padding: 16px 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0,0,0,0.2);
 }
 
 .modal-header h2 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.3rem;
   color: #4ade80;
 }
 
 .modal-close {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border: none;
   background: transparent;
   color: #f1f5f9;
   font-size: 2rem;
   line-height: 1;
   cursor: pointer;
-  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
-  touch-action: manipulation;
 }
 
-.modal-close:hover {
-  background: rgba(255, 255, 255, 0.1);
-  transform: rotate(90deg);
-}
-
-.modal-body {
-  padding: 20px 24px;
+.modal-body, .overlay-content {
+  padding: 20px;
   overflow-y: auto;
-  flex: 1;
-}
-
-/* ========== 排行榜樣式 ========== */
-.leaderboard-card {
-  padding: 16px;
-  border-radius: 14px;
-  background: rgba(8, 12, 28, 0.9);
-  border: 1px solid rgba(148, 163, 184, 0.15);
-  box-shadow: inset 0 0 20px rgba(20, 184, 166, 0.1);
-  margin-bottom: 16px;
-}
-
-.leaderboard-card:last-child {
-  margin-bottom: 0;
-}
-
-.leaderboard-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.leaderboard-header h3 {
-  margin: 0;
-  font-size: 1.1rem;
-}
-
-.leaderboard-list {
-  list-style: decimal;
-  margin: 12px 0 0;
-  padding-left: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 0.95rem;
-}
-
-.leaderboard-list li {
-  color: #e2e8f0;
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: rgba(15, 23, 42, 0.65);
-  border: 1px solid rgba(148, 163, 184, 0.12);
-}
-
-.lb-name {
-  font-weight: 600;
-  font-size: 0.9rem;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lb-kills {
-  color: #f97316;
-  font-weight: 600;
-  font-size: 0.85rem;
-  flex-shrink: 0;
-}
-
-.lb-score {
-  color: #a5b4fc;
-  font-size: 0.85rem;
-  flex-shrink: 0;
 }
 
 /* ========== 遊戲說明樣式 ========== */
 #guidePanel {
-  background: rgba(17, 24, 39, 0.85);
-  border-radius: 16px;
-  padding: 16px 20px;
+  color: #f1f5f9;
 }
 
 #guidePanel h2 {
-  margin-top: 0;
-  font-size: 1.1rem;
-}
-
-#guidePanel p {
-  margin: 0;
-  line-height: 1.5;
-}
-
-.icon-list {
-  list-style: none;
-  padding: 0;
-  margin: 16px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.icon-list li {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  background: rgba(15, 23, 42, 0.7);
-  border-radius: 12px;
-  padding: 10px 12px;
-  border: 1px solid rgba(148, 163, 184, 0.1);
-}
-
-.icon-list img {
-  width: 40px;
-  height: 40px;
-  object-fit: contain;
-  border-radius: 8px;
-  background: #0f172a;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.icon-list strong {
-  display: block;
-  font-size: 0.9rem;
-}
-
-.icon-list p {
-  font-size: 0.85rem;
-}
-
-.tip {
-  margin-top: 8px;
-  font-size: 0.95rem;
-  opacity: 0.85;
-}
-
-/* ========== 暫停 Modal ========== */
-.pause-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.pause-btn {
-  padding: 14px 24px;
-  border: none;
-  border-radius: 10px;
-  font-size: 1.1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  min-height: 48px;
-  touch-action: manipulation;
-}
-
-.pause-btn.primary {
-  background: linear-gradient(135deg, #4ade80, #22c55e);
-  color: #0f172a;
-}
-
-.pause-btn:not(.primary) {
-  background: rgba(15, 23, 42, 0.9);
-  color: #f1f5f9;
-  border: 2px solid rgba(148, 163, 184, 0.3);
-}
-
-.pause-btn:hover {
-  transform: translateY(-2px);
-}
-
-.pause-btn:active {
-  transform: translateY(0);
-}
-
-/* ========== Overlay (升級、Game Over) ========== */
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1500;
-  padding: 20px;
-  overflow-y: auto;
-}
-
-.overlay.hidden {
-  display: none;
-}
-
-.overlay-content {
-  background: #1f2937;
-  padding: 24px;
-  border-radius: 16px;
-  text-align: center;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
-  width: 100%;
-  max-width: 600px;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-.overlay-content .stats {
-  display: flex;
-  gap: 16px;
-  justify-content: center;
-  margin: 12px 0 6px;
-  flex-wrap: wrap;
-}
-
-.overlay-content .stats p {
-  margin: 0;
-  font-size: 1rem;
-}
-
-.upload-form {
-  margin-top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-#playerNameInput {
-  padding: 12px 16px;
-  border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  background: rgba(15, 23, 42, 0.8);
-  color: #f1f5f9;
-  font-size: 1rem;
-  width: 100%;
-  touch-action: manipulation;
-}
-
-#playerNameInput:focus {
-  outline: none;
-  border-color: #38bdf8;
-  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
-}
-
-#uploadScoreBtn {
-  padding: 12px 16px;
-  border-radius: 10px;
-  border: none;
-  font-size: 1rem;
-  background: linear-gradient(90deg, #4ade80, #22d3ee);
-  color: #0f172a;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.2s ease, transform 0.1s ease;
-  min-height: 44px;
-  touch-action: manipulation;
-}
-
-#uploadScoreBtn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-#uploadScoreBtn:active {
-  transform: scale(0.98);
-}
-
-.upload-status {
-  font-size: 0.85rem;
-  min-height: 1em;
-  margin: 0;
-}
-
-.upload-status.success {
+  margin: 0 0 12px 0;
+  font-size: 1.2rem;
   color: #4ade80;
 }
 
-.upload-status.error {
-  color: #f87171;
+#guidePanel > p {
+  margin: 0 0 16px 0;
+  font-size: 0.9rem;
+  color: #cbd5e1;
+  line-height: 1.5;
 }
 
-.game-over-buttons {
+#guidePanel .icon-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-top: 16px;
 }
 
-.game-over-btn {
-  padding: 14px 24px;
-  border: none;
+#guidePanel .icon-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: rgba(15, 23, 42, 0.5);
   border-radius: 10px;
-  font-size: 1.1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  min-height: 48px;
-  touch-action: manipulation;
-  background: rgba(15, 23, 42, 0.9);
-  color: #f1f5f9;
-  border: 2px solid rgba(148, 163, 184, 0.3);
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
 }
 
-.game-over-btn:hover {
-  transform: translateY(-2px);
-  border-color: #4ade80;
-}
-
-.game-over-btn:active {
-  transform: translateY(0);
-}
-
-/* ========== 升級選擇 ========== */
-.upgrade-content {
-  max-width: 900px;
-  width: 100%;
-}
-
-.upgrade-options {
-  display: flex;
-  gap: 16px;
-  justify-content: center;
-  flex-wrap: wrap;
-  margin-top: 20px;
-}
-
-.upgrade-option {
-  flex: 1;
-  min-width: 200px;
-  max-width: 280px;
-  background: rgba(15, 23, 42, 0.9);
-  border: 2px solid rgba(74, 222, 128, 0.3);
-  border-radius: 12px;
-  padding: 20px;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  touch-action: manipulation;
-}
-
-.upgrade-option:hover {
-  border-color: #4ade80;
-  transform: translateY(-4px);
-  box-shadow: 0 8px 20px rgba(74, 222, 128, 0.3);
-  background: rgba(15, 23, 42, 1);
-}
-
-.upgrade-option:active {
-  transform: translateY(-2px);
-}
-
-.upgrade-option.maxed {
-  opacity: 0.6;
-  cursor: not-allowed;
-  border-color: rgba(148, 163, 184, 0.3);
-}
-
-.upgrade-option.maxed:hover {
-  transform: none;
-  box-shadow: none;
-}
-
-.upgrade-option-icon {
-  width: 64px;
-  height: 64px;
+#guidePanel .icon-list img {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
   object-fit: contain;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
 }
 
-.upgrade-option-name {
-  font-size: 1.2rem;
+#guidePanel .icon-list div {
+  flex: 1;
+  min-width: 0;
+}
+
+#guidePanel .icon-list strong {
+  display: block;
+  font-size: 0.95rem;
   font-weight: 600;
   color: #4ade80;
-  text-align: center;
+  margin-bottom: 4px;
 }
 
-.upgrade-option-description {
-  font-size: 0.9rem;
+#guidePanel .icon-list p {
+  margin: 0;
+  font-size: 0.85rem;
   color: #cbd5e1;
-  text-align: center;
   line-height: 1.4;
 }
 
-.upgrade-option-level {
+#guidePanel .tip {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
   font-size: 0.85rem;
   color: #94a3b8;
-  margin-top: 4px;
+  line-height: 1.5;
 }
 
-.upgrade-option.maxed .upgrade-option-level {
-  color: #fbbf24;
+/* 升級選項樣式 */
+.upgrade-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-/* ========== 載入器 ========== */
-.loader-card {
-  background: #111827;
-  padding: 24px 28px;
-  border-radius: 16px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
-  text-align: center;
-  min-width: 260px;
+.upgrade-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 2px solid rgba(74, 222, 128, 0.2);
+  border-radius: 12px;
+  padding: 12px;
+  cursor: pointer;
 }
 
+.upgrade-option:active {
+  background: rgba(74, 222, 128, 0.1);
+  transform: scale(0.98);
+}
+
+.upgrade-option.maxed {
+  opacity: 0.5;
+  filter: grayscale(1);
+}
+
+.upgrade-option-icon {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  background: rgba(0,0,0,0.3);
+  border-radius: 8px;
+}
+
+.upgrade-option-info {
+    flex: 1;
+    text-align: left;
+}
+
+.upgrade-option-name {
+  font-size: 1rem;
+  font-weight: bold;
+  color: #4ade80;
+}
+
+.upgrade-option-desc {
+  font-size: 0.8rem;
+  color: #cbd5e1;
+}
+
+.upgrade-option-level {
+    font-size: 0.75rem;
+    color: #94a3b8;
+}
+
+/* Game Over & Upload Form */
+.stats {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.upload-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#playerNameInput {
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #475569;
+    background: #0f172a;
+    color: white;
+}
+
+#uploadScoreBtn {
+    padding: 12px;
+    background: linear-gradient(90deg, #3b82f6, #2563eb);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: bold;
+}
+
+.game-over-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.game-over-btn {
+    flex: 1;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #475569;
+    background: #1e293b;
+    color: white;
+    cursor: pointer;
+}
+
+/* 排行榜樣式 */
+.leaderboard-card {
+  background: rgba(0,0,0,0.2);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.leaderboard-list {
+    padding-left: 20px;
+    margin: 10px 0 0 0;
+}
+.leaderboard-list li {
+    margin-bottom: 6px;
+    font-size: 0.9rem;
+}
+
+/* 倒數計時 */
+.countdown-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 3000;
+  pointer-events: none;
+}
+
+.countdown-overlay.hidden {
+  display: none;
+}
+
+.countdown-number {
+  font-size: 8rem;
+  font-weight: 900;
+  color: #4ade80;
+  text-shadow: 0 0 30px rgba(74, 222, 128, 0.8);
+  animation: countdownPulse 0.5s ease-out;
+}
+
+@keyframes countdownPulse {
+  0% { transform: scale(0.5); opacity: 0; }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Loader styles */
 .loader-bar {
-  width: 100%;
-  height: 10px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
-  margin-top: 12px;
-  overflow: hidden;
+    width: 100%;
+    height: 6px;
+    background: #334155;
+    border-radius: 3px;
+    margin-top: 10px;
+    overflow: hidden;
 }
-
 #loaderBar {
-  height: 100%;
-  width: 0%;
-  background: linear-gradient(90deg, #4ade80, #22d3ee);
-  border-radius: 999px;
-  transition: width 0.2s ease;
-}
-
-/* ========== 響應式設計 ========== */
-@media (min-width: 768px) {
-  .home-title {
-    font-size: 2.5rem;
-  }
-
-  .home-content {
-    max-width: 600px;
-  }
-
-  .home-buttons {
-    flex-direction: row;
-  }
-
-  .home-btn {
-    flex: 1;
-  }
-
-  canvas {
-    max-width: 800px;
-    max-height: 600px;
-  }
-
-  .game-controls {
-    top: 16px;
-    right: 16px;
-  }
-
-  .control-btn {
-    width: 48px;
-    height: 48px;
-    font-size: 1.3rem;
-  }
-
-  .upgrade-option {
-    min-width: 250px;
-  }
-
-  .game-over-buttons {
-    flex-direction: row;
-  }
-
-  .game-over-btn {
-    flex: 1;
-  }
-
-  .pause-buttons {
-    flex-direction: row;
-  }
-
-  .pause-btn {
-    flex: 1;
-  }
-}
-
-@media (min-width: 1024px) {
-  .home-title {
-    font-size: 3rem;
-  }
-
-  canvas {
-    width: 800px;
-    height: 600px;
-    max-width: 800px;
-    max-height: 600px;
-  }
+    height: 100%;
+    background: #4ade80;
+    width: 0%;
+    transition: width 0.2s;
 }

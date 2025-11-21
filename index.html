@@ -2,23 +2,32 @@
 <html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
     <title>勇者貪食蛇 RPG</title>
     <link rel="stylesheet" href="style.css" />
     <script src="guide-config.js"></script>
     <script src="upgrade-config.js"></script>
     <script src="enemy-spawn-config.js"></script>
     <script>
-      const GRID_SIZE = 40; // 網格大小 (像素)，決定角色與地圖格子的尺寸
-      const GAME_SPEED = 150; // 遊戲速度 (毫秒)，數值越小移動越快
-      const ENEMY_SPAWN_RATE = 2000; // 敵人生成頻率 (毫秒)
-      const ENEMY_SPEED = 1.5; // 敵人移動速度 (像素/幀)
+      // 遊戲常數定義
+      const GRID_SIZE = 40; // 網格大小 (像素)
+      const GAME_SPEED = 150; // 遊戲速度 (毫秒)
+      const ENEMY_SPAWN_RATE = 2000; // 敵人生成頻率
+      const ENEMY_SPEED = 1.5; // 敵人移動速度
       const PROJECTILE_SPEED = 5; // 弓箭飛行速度
-      const ATTACK_RANGE = 300; // 弓箭手攻擊距離 (像素)
-      const AURA_RADIUS = 80; // 法師光環範圍 (像素)
-      const AURA_DAMAGE = 0.5; // 法師光環每幀傷害
-      const ARROW_DAMAGE = 10; // 弓箭單發傷害
-      const ENEMY_HP = 20; // 敵人血量
+      const ATTACK_RANGE = 280; // 弓箭手攻擊距離（約 7 格，7 × 40 = 280 像素）
+      const AURA_RADIUS = 80; // 法師光環範圍
+      const AURA_DAMAGE = 3; // 法師光環傷害
+      const ARROW_DAMAGE = 10; // 弓箭傷害
+      const ENEMY_HP = 20; // 敵人基礎血量
+      const LEADER_MAX_HP = 150; // 隊長最大血量
+
+      // 地圖設定 (邏輯網格)
+      const WORLD_WIDTH_GRIDS = 60; // 世界寬度 (格)
+      const WORLD_HEIGHT_GRIDS = 60; // 世界高度 (格)
     </script>
     <script type="module">
       import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
@@ -58,50 +67,48 @@
       window.firebaseWhere = where;
       window.firebaseTimestamp = Timestamp;
       window.firebaseReady = true;
-      
+
       if (window.updateLeaderboard) {
         window.updateLeaderboard();
       }
     </script>
   </head>
   <body>
-    <!-- 遊戲畫面（預設隱藏） -->
+    <!-- 遊戲畫面 (全螢幕) -->
     <div id="gameScreen" class="game-screen hidden">
-      <!-- HUD -->
-      <div class="ui">
-        <h1>勇者貪食蛇 RPG</h1>
-        <div class="scoreboard">
-          <div class="score">隊伍長度：<span id="scoreValue">1</span></div>
-          <div class="score">擊殺數：<span id="killValue">0</span></div>
+      <!-- 背景 Canvas (遊戲世界) -->
+      <canvas id="gameCanvas"></canvas>
+
+      <!-- HUD 層 (懸浮介面) -->
+      <div class="hud-layer">
+        <!-- 左上：小地圖 -->
+        <div class="minimap-container">
+            <canvas id="minimap" width="150" height="150"></canvas>
         </div>
-        <div class="level-system">
-          <div class="level-info">
-            <span>等級：<span id="playerLevel">1</span></span>
-          </div>
-          <div class="exp-bar-container">
-            <div class="exp-bar-label">
-              <span>經驗值：</span>
-              <span id="expText">0 / 100</span>
+
+        <!-- 頂部中間：分數與資訊 -->
+        <div class="top-stats">
+            <div class="score-row">
+                <div class="score-pill">隊伍: <span id="scoreValue">1</span></div>
+                <div class="score-pill">擊殺: <span id="killValue">0</span></div>
             </div>
-            <div class="exp-bar">
-              <div id="expBarFill" class="exp-bar-fill"></div>
+            <div class="level-row">
+                <div class="level-badge">Lv.<span id="playerLevel">1</span></div>
+                <div class="hud-exp-bar">
+                    <div id="expBarFill" class="hud-exp-fill"></div>
+                    <span id="expText" class="hud-exp-text">0 / 100</span>
+                </div>
             </div>
-          </div>
         </div>
-      </div>
-      
-      <!-- Canvas 容器 -->
-      <div class="canvas-container">
-        <canvas id="gameCanvas"></canvas>
-        
-        <!-- 遊戲中快捷按鈕（右上角） -->
-        <div class="game-controls">
-          <button id="pauseBtn" class="control-btn" title="暫停">⏸</button>
-          <button id="leaderboardBtn" class="control-btn" title="排行榜">📊</button>
-          <button id="guideBtn" class="control-btn" title="遊戲說明">❓</button>
+
+        <!-- 右上：功能按鈕 -->
+        <div class="top-controls">
+            <button id="pauseBtn" class="control-btn" title="暫停">⏸</button>
+            <button id="leaderboardBtn" class="control-btn" title="排行榜">📊</button>
+            <button id="guideBtn" class="control-btn" title="遊戲說明">❓</button>
         </div>
         
-        <!-- 倒數計時顯示 -->
+        <!-- 倒數計時顯示 (全螢幕覆蓋) -->
         <div id="countdownOverlay" class="countdown-overlay hidden">
           <div class="countdown-content">
             <div id="countdownNumber" class="countdown-number">3</div>
@@ -110,12 +117,11 @@
       </div>
     </div>
 
-    <!-- 主選單（首頁） -->
+    <!-- 主選單 (首頁) -->
     <div id="homeScreen" class="home-screen">
       <div class="home-content">
         <h1 class="home-title">勇者貪食蛇 RPG</h1>
         
-        <!-- 載入畫面 -->
         <div id="homeLoader" class="home-loader">
           <div class="loader-card">
             <p id="loaderText">載入資產中... 0%</p>
@@ -125,7 +131,6 @@
           </div>
         </div>
         
-        <!-- 主選單內容 -->
         <div id="homeMenu" class="home-menu hidden">
           <div class="name-input-group">
             <label for="homePlayerNameInput">輸入你的勇者名</label>

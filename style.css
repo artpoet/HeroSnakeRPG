@@ -285,6 +285,59 @@ canvas {
   transform: scale(0.95);
 }
 
+/* ========== 倒數計時 ========== */
+.countdown-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 1500;
+  pointer-events: none;
+}
+
+.countdown-overlay.hidden {
+  display: none;
+}
+
+.countdown-content {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.countdown-number {
+  font-size: 8rem;
+  font-weight: 900;
+  color: #4ade80;
+  text-shadow: 
+    0 0 20px rgba(74, 222, 128, 0.8),
+    0 0 40px rgba(74, 222, 128, 0.6),
+    0 0 60px rgba(74, 222, 128, 0.4);
+  animation: countdownPulse 0.5s ease-out;
+}
+
+@keyframes countdownPulse {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .countdown-number {
+    font-size: 6rem;
+  }
+}
+
 /* ========== Modal 彈窗 ========== */
 .modal {
   position: fixed;

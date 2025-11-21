@@ -46,6 +46,8 @@ const pauseCloseBtn = document.getElementById("pauseCloseBtn");
 const pauseResumeBtn = document.getElementById("pauseResumeBtn");
 const pauseHomeBtn = document.getElementById("pauseHomeBtn");
 const homeBtn = document.getElementById("homeBtn");
+const countdownOverlay = document.getElementById("countdownOverlay");
+const countdownNumber = document.getElementById("countdownNumber");
 
 const ARCHER_COOLDOWN = 1000; // 弓箭手冷卻 (毫秒)
 const ITEM_COLOR = "#a855f7"; // 道具顏色 (紫色)
@@ -162,6 +164,7 @@ let lastMoveTime = 0;
 let lastEnemySpawn = 0;
 let isGameOver = false;
 let isPaused = false; // 遊戲暫停狀態
+let isCountdown = false; // 倒數計時狀態
 let animationId = null;
 let leaderHP = LEADER_MAX_HP;
 let killCount = 0;
@@ -411,7 +414,13 @@ function startGame() {
   killValue.textContent = killCount;
   isGameOver = false;
   isPaused = false;
+  isCountdown = false;
   overlay.classList.add("hidden");
+  
+  // 隱藏倒數計時
+  if (countdownOverlay) {
+    countdownOverlay.classList.add("hidden");
+  }
   lastMoveTime = 0;
   lastEnemySpawn = 0;
   leaderHP = LEADER_MAX_HP;
@@ -672,7 +681,9 @@ function handleArcherAttacks(timestamp) {
   snake.forEach((segment, index) => {
     if (index === 0) return;
     if (segment.role !== "archer") return;
-    if (timestamp - (segment.lastShot || 0) < ARCHER_COOLDOWN) return;
+    // 使用升級後的冷卻時間
+    const cooldown = getArcherCooldown();
+    if (timestamp - (segment.lastShot || 0) < cooldown) return;
     const enemy = findNearestEnemy(segment);
     if (!enemy) return;
     const segCenter = gridToPixel(segment);
@@ -682,12 +693,15 @@ function handleArcherAttacks(timestamp) {
     // 發射多支箭矢（如果升級了）
     for (let i = 0; i < arrowCount; i++) {
       const spreadAngle = arrowCount > 1 ? (i - (arrowCount - 1) / 2) * 0.2 : 0;
+      // 從稍微遠離弓箭手的位置發射，避免立即與發射者碰撞
+      const offsetDistance = GRID_SIZE * 0.6; // 從弓箭手前方一點距離開始
       projectiles.push({
-        x: segCenter.x,
-        y: segCenter.y,
+        x: segCenter.x + Math.cos(angle + spreadAngle) * offsetDistance,
+        y: segCenter.y + Math.sin(angle + spreadAngle) * offsetDistance,
         vx: Math.cos(angle + spreadAngle) * arrowSpeed,
         vy: Math.sin(angle + spreadAngle) * arrowSpeed,
         damage: ARROW_DAMAGE,
+        shooterIndex: index, // 記錄發射者的索引，避免檢測與發射者碰撞
       });
     }
     segment.lastShot = timestamp;
@@ -739,6 +753,7 @@ function updateProjectiles() {
     proj.y += proj.vy;
   });
   projectiles = projectiles.filter((proj) => {
+    // 檢查是否超出邊界
     if (
       proj.x < 0 ||
       proj.y < 0 ||
@@ -747,11 +762,40 @@ function updateProjectiles() {
     ) {
       return false;
     }
+    
+    // 檢查是否與隊伍成員碰撞（弓箭不能穿越隊伍）
+    // 但跳過發射者本身，避免弓箭一發射就被移除
+    for (let i = 0; i < snake.length; i++) {
+      // 如果是發射者，跳過檢測（但只跳過第一幀，之後可以碰撞）
+      if (proj.shooterIndex === i && proj.framesAlive === undefined) {
+        proj.framesAlive = 0;
+        continue;
+      }
+      const segment = snake[i];
+      const segCenter = gridToPixel(segment);
+      const dist = distance(proj.x, proj.y, segCenter.x, segCenter.y);
+      if (dist < GRID_SIZE * 0.4) {
+        // 擊中隊伍成員，移除弓箭
+        return false;
+      }
+    }
+    
+    // 更新弓箭存活幀數（用於判斷是否已離開發射者）
+    if (proj.framesAlive !== undefined) {
+      proj.framesAlive++;
+      // 3 幀後移除 shooterIndex，之後可以與發射者碰撞（如果弓箭回頭）
+      if (proj.framesAlive > 3) {
+        delete proj.shooterIndex;
+      }
+    }
+    
+    // 檢查是否與敵人碰撞
     for (const enemy of enemies) {
       if (enemy.hp <= 0) continue;
       const dist = distance(proj.x, proj.y, enemy.x, enemy.y);
       if (dist < GRID_SIZE * 0.4) {
         damageEnemy(enemy, proj.damage);
+        // 擊中敵人後移除弓箭（不能穿透）
         return false;
       }
     }
@@ -1289,6 +1333,23 @@ function getArcherArrowCount() {
   return getUpgradedValue("archer", "arrowCount", 1);
 }
 
+// 獲取弓箭手射擊冷卻時間（升級後會減少冷卻時間，提高射擊頻率）
+function getArcherCooldown() {
+  if (!window.UPGRADE_CONFIG) return ARCHER_COOLDOWN;
+  
+  const config = window.UPGRADE_CONFIG.upgrades?.archer?.arrowSpeed;
+  if (!config) return ARCHER_COOLDOWN;
+  
+  const currentLevel = upgradeLevels.archer.arrowSpeed || 0;
+  
+  // 每級減少 10% 冷卻時間（最多減少到 50%，即冷卻時間減半）
+  // 公式：cooldown = baseCooldown * (1 - level * 0.1)，最小為 baseCooldown * 0.5
+  const reduction = Math.min(currentLevel * 0.1, 0.5);
+  const newCooldown = ARCHER_COOLDOWN * (1 - reduction);
+  
+  return Math.max(newCooldown, ARCHER_COOLDOWN * 0.5); // 最少減少到 50%
+}
+
 // 獲取騎士可被攻擊次數
 function getKnightHitPoints() {
   return getUpgradedValue("knight", "hitPoints", 1);
@@ -1352,6 +1413,12 @@ async function triggerGameOver() {
 // 判斷是否進入前10名
 function checkIfInLeaderboard() {
   if (!uploadScoreBtn) return;
+  
+  // 如果一個敵人都沒殺，不顯示上傳按鈕
+  if (killCount === 0) {
+    uploadScoreBtn.style.display = "none";
+    return;
+  }
   
   // 檢查今日排行榜：如果今日排行榜沒有記錄或記錄少於10筆，顯示上傳按鈕
   if (todayLeaderboardData.length === 0 || todayLeaderboardData.length < 10) {
@@ -1615,8 +1682,8 @@ function gameLoop(timestamp) {
     return;
   }
   
-  // 如果遊戲暫停，只繪製畫面，不更新邏輯
-  if (isPaused) {
+  // 如果遊戲暫停或正在倒數計時，只繪製畫面，不更新邏輯
+  if (isPaused || isCountdown) {
     draw();
     animationId = requestAnimationFrame(gameLoop);
     return;
@@ -1814,13 +1881,55 @@ function showModal(modal) {
 function hideModal(modal) {
   if (!modal) return;
   modal.classList.add("hidden");
-  // 只有在沒有其他 Modal 顯示時才取消暫停
+  // 只有在沒有其他 Modal 顯示時才開始倒數計時
   if (!leaderboardModal?.classList.contains("hidden") || 
       !guideModal?.classList.contains("hidden") || 
       !pauseModal?.classList.contains("hidden")) {
     return;
   }
-  isPaused = false;
+  // 開始倒數計時
+  startCountdown();
+}
+
+// ========== 倒數計時功能 ==========
+function startCountdown() {
+  if (isCountdown || isGameOver || isChoosingUpgrade) return;
+  
+  isCountdown = true;
+  let count = 3;
+  
+  // 顯示倒數計時
+  if (countdownOverlay) {
+    countdownOverlay.classList.remove("hidden");
+  }
+  
+  // 更新倒數數字
+  function updateCountdown() {
+    if (!countdownNumber) return;
+    
+    if (count > 0) {
+      countdownNumber.textContent = count;
+      count--;
+      // 添加動畫效果
+      countdownNumber.style.animation = "none";
+      setTimeout(() => {
+        if (countdownNumber) {
+          countdownNumber.style.animation = "countdownPulse 0.5s ease-out";
+        }
+      }, 10);
+      setTimeout(updateCountdown, 1000);
+    } else {
+      // 倒數完成，隱藏倒數計時並取消暫停
+      if (countdownOverlay) {
+        countdownOverlay.classList.add("hidden");
+      }
+      isPaused = false;
+      isCountdown = false;
+    }
+  }
+  
+  // 開始倒數
+  updateCountdown();
 }
 
 function showLeaderboard() {
@@ -1861,6 +1970,12 @@ function goToHome() {
   // 重置狀態
   isPaused = false;
   isGameOver = false;
+  isCountdown = false;
+  
+  // 隱藏倒數計時
+  if (countdownOverlay) {
+    countdownOverlay.classList.add("hidden");
+  }
 }
 
 // ========== 事件監聽器 ==========

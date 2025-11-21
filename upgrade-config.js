@@ -69,7 +69,7 @@ window.UPGRADE_CONFIG = {
       },
       arrowSpeed: {
         name: "射擊速度",
-        description: "箭矢飛行速度 +{value}",
+        description: "箭矢飛行速度 +{value}，射擊頻率提升",
         baseValue: 5,       // 基礎速度（PROJECTILE_SPEED）
         increment: 1,       // 每次升級增加的值
         maxLevel: 10,

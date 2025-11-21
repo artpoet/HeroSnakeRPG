@@ -1399,10 +1399,36 @@ canvas.addEventListener("touchstart", (e) => {
     const touch = e.touches[0];
     touchStartX = touch.clientX;
     touchStartY = touch.clientY;
+    touchEndX = touch.clientX;
+    touchEndY = touch.clientY;
+    touchEndTime = 0;
+}, { passive: false });
+
+canvas.addEventListener("touchend", (e) => {
+    if (e.changedTouches && e.changedTouches.length > 0) {
+        const touch = e.changedTouches[0];
+        touchEndX = touch.clientX;
+        touchEndY = touch.clientY;
+        touchEndTime = Date.now();
+        
+        // 記錄結束點用於繪製箭頭
+        if (touchTrails.length > 0) {
+            const lastPoint = touchTrails[touchTrails.length - 1];
+            touchTrails.push({
+                x: touchEndX,
+                y: touchEndY,
+                life: 15,
+                isEnd: true // 標記為結束點
+            });
+        }
+    }
 }, { passive: false });
 
 let touchStartX = 0;
 let touchStartY = 0;
+let touchEndX = 0;
+let touchEndY = 0;
+let touchEndTime = 0;
 
 function handleTouchControl(touch) {
     const dx = touch.clientX - touchStartX;
@@ -1426,13 +1452,18 @@ function handleTouchControl(touch) {
 }
 
 function drawTouchTrails() {
+    ctx.save();
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.lineWidth = 4;
     ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
     
-    if (touchTrails.length < 2) return;
+    if (touchTrails.length < 2) {
+        ctx.restore();
+        return;
+    }
     
+    // 繪製軌跡線
     ctx.beginPath();
     for (let i = 0; i < touchTrails.length - 1; i++) {
         const p1 = touchTrails[i];
@@ -1444,6 +1475,45 @@ function drawTouchTrails() {
         }
     }
     ctx.stroke();
+    
+    // 繪製箭頭（在軌跡末端）
+    if (touchTrails.length >= 2) {
+        const lastIndex = touchTrails.length - 1;
+        const lastPoint = touchTrails[lastIndex];
+        const secondLastPoint = touchTrails[lastIndex - 1];
+        
+        // 計算方向
+        const dx = lastPoint.x - secondLastPoint.x;
+        const dy = lastPoint.y - secondLastPoint.y;
+        const dist = Math.hypot(dx, dy);
+        
+        if (dist > 5) { // 確保有足夠的距離來繪製箭頭
+            const angle = Math.atan2(dy, dx);
+            const arrowLength = 20;
+            const arrowWidth = 8;
+            
+            // 箭頭尖端位置
+            const arrowTipX = lastPoint.x;
+            const arrowTipY = lastPoint.y;
+            
+            // 箭頭兩側點
+            const arrowLeftX = arrowTipX - arrowLength * Math.cos(angle) + arrowWidth * Math.cos(angle + Math.PI / 2);
+            const arrowLeftY = arrowTipY - arrowLength * Math.sin(angle) + arrowWidth * Math.sin(angle + Math.PI / 2);
+            const arrowRightX = arrowTipX - arrowLength * Math.cos(angle) + arrowWidth * Math.cos(angle - Math.PI / 2);
+            const arrowRightY = arrowTipY - arrowLength * Math.sin(angle) + arrowWidth * Math.sin(angle - Math.PI / 2);
+            
+            // 繪製箭頭
+            ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+            ctx.beginPath();
+            ctx.moveTo(arrowTipX, arrowTipY);
+            ctx.lineTo(arrowLeftX, arrowLeftY);
+            ctx.lineTo(arrowRightX, arrowRightY);
+            ctx.closePath();
+            ctx.fill();
+        }
+    }
+    
+    ctx.restore();
     
     // 衰減
     touchTrails.forEach(p => p.life--);
@@ -1711,6 +1781,80 @@ function triggerGameOver() {
 
 document.getElementById("restartBtn").addEventListener("click", startGame);
 document.getElementById("homeBtn").addEventListener("click", () => window.location.reload());
+
+// ========== 上傳分數功能 ==========
+const uploadScoreBtn = document.getElementById("uploadScoreBtn");
+const uploadStatus = document.getElementById("uploadStatus");
+
+if (uploadScoreBtn) {
+    uploadScoreBtn.addEventListener("click", async () => {
+        const nameInput = document.getElementById("playerNameInput");
+        const name = nameInput ? nameInput.value.trim() : "";
+        
+        if (!name) {
+            if (uploadStatus) {
+                uploadStatus.textContent = "請輸入勇者名";
+                uploadStatus.style.color = "#ef4444";
+            }
+            return;
+        }
+        
+        if (!window.firebaseReady || !window.firebaseAddDoc || !window.firebaseLeaderboardRef) {
+            if (uploadStatus) {
+                uploadStatus.textContent = "Firebase 未就緒，請檢查網路連線";
+                uploadStatus.style.color = "#ef4444";
+            }
+            return;
+        }
+        
+        if (killCount === 0) {
+            if (uploadStatus) {
+                uploadStatus.textContent = "擊殺數為 0，無法上傳";
+                uploadStatus.style.color = "#ef4444";
+            }
+            return;
+        }
+        
+        // 保存名字
+        localStorage.setItem("playerName", name);
+        
+        // 上傳分數
+        if (uploadStatus) {
+            uploadStatus.textContent = "上傳中...";
+            uploadStatus.style.color = "#94a3b8";
+        }
+        
+        try {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            await window.firebaseAddDoc(window.firebaseLeaderboardRef, {
+                name: name,
+                kills: killCount,
+                score: maxLengthThisRun,
+                level: maxLevelThisRun,
+                date: window.firebaseTimestamp ? window.firebaseTimestamp.now() : new Date(),
+                timestamp: Date.now()
+            });
+            
+            if (uploadStatus) {
+                uploadStatus.textContent = "上傳成功！";
+                uploadStatus.style.color = "#4ade80";
+            }
+            
+            // 更新排行榜
+            if (leaderboardModal && !leaderboardModal.classList.contains("hidden")) {
+                updateLeaderboard();
+            }
+        } catch (error) {
+            console.error("Upload failed", error);
+            if (uploadStatus) {
+                uploadStatus.textContent = "上傳失敗：" + (error.message || "未知錯誤");
+                uploadStatus.style.color = "#ef4444";
+            }
+        }
+    });
+}
 
 function startCountdown() {
     isCountdown = true;

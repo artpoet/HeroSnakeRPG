@@ -8,7 +8,8 @@ const loaderText = document.getElementById("loaderText");
 const loaderBar = document.getElementById("loaderBar");
 const maxLengthValue = document.getElementById("maxLengthValue");
 const finalKillValue = document.getElementById("finalKillValue");
-const leaderboardList = document.getElementById("leaderboardList");
+const leaderboardListAll = document.getElementById("leaderboardListAll");
+const leaderboardListToday = document.getElementById("leaderboardListToday");
 const playerNameInput = document.getElementById("playerNameInput");
 const uploadScoreBtn = document.getElementById("uploadScoreBtn");
 const uploadStatus = document.getElementById("uploadStatus");
@@ -142,18 +143,22 @@ let assetsReady = false;
 let isUploading = false;
 let hasUploadedThisRun = false;
 
-window.subscribeLeaderboard = subscribeLeaderboard;
+window.updateLeaderboard = updateLeaderboard;
 
+// 頁面載入時更新一次排行榜
 if (window.firebaseReady && window.firebaseLeaderboardRef) {
-  subscribeLeaderboard();
+  updateLeaderboard();
 } else {
   const checkFirebase = setInterval(() => {
     if (window.firebaseReady && window.firebaseLeaderboardRef) {
-      subscribeLeaderboard();
+      updateLeaderboard();
       clearInterval(checkFirebase);
     }
   }, 100);
 }
+
+// 儲存排行榜數據，用於判斷是否進入前10名
+let leaderboardData = [];
 
 function createAsset(src, fallback) {
   const img = new Image();
@@ -741,13 +746,32 @@ function rectCircleCollide(rect, circle) {
   return dx * dx + dy * dy < (GRID_SIZE / 2) ** 2;
 }
 
-function triggerGameOver() {
+async function triggerGameOver() {
   if (isGameOver) return;
   isGameOver = true;
   maxLengthValue.textContent = maxLengthThisRun;
   finalKillValue.textContent = killCount;
   resetUploadForm();
+  // 先更新排行榜，然後判斷是否進入前10名
+  await updateLeaderboard();
+  checkIfInLeaderboard();
   overlay.classList.remove("hidden");
+}
+
+// 判斷是否進入前10名
+function checkIfInLeaderboard() {
+  if (!uploadScoreBtn) return;
+  // 如果排行榜數據不足10筆，或者當前擊殺數大於等於第10名的擊殺數，則顯示上傳按鈕
+  if (leaderboardData.length < 10) {
+    uploadScoreBtn.style.display = "block";
+    return;
+  }
+  const minKills = leaderboardData[leaderboardData.length - 1]?.kills ?? 0;
+  if (killCount >= minKills) {
+    uploadScoreBtn.style.display = "block";
+  } else {
+    uploadScoreBtn.style.display = "none";
+  }
 }
 
 function draw() {
@@ -1045,6 +1069,8 @@ function resetUploadForm() {
     // 從 localStorage 讀取保存的名字，如果沒有則為空
     const savedName = localStorage.getItem("playerName") || "";
     playerNameInput.value = savedName;
+    // 初始狀態隱藏上傳按鈕，等待 checkIfInLeaderboard 判斷
+    uploadScoreBtn.style.display = "none";
   }
   uploadScoreBtn.disabled = hasUploadedThisRun;
   uploadStatus.textContent = hasUploadedThisRun ? "已上傳至排行榜！" : "";
@@ -1089,6 +1115,8 @@ async function handleScoreUpload() {
     localStorage.setItem("playerName", name);
     uploadStatus.textContent = "已上傳至排行榜！";
     uploadStatus.className = "upload-status success";
+    // 上傳成功後更新排行榜
+    updateLeaderboard();
   } catch (error) {
     console.error("Failed to upload score", error);
     uploadStatus.textContent = "上傳失敗，請稍後再試。";
@@ -1099,39 +1127,87 @@ async function handleScoreUpload() {
   }
 }
 
-function subscribeLeaderboard() {
-  if (!leaderboardList || !window.firebaseLeaderboardRef) return;
-  const leaderboardQuery = window.firebaseQuery(
-    window.firebaseLeaderboardRef,
-    window.firebaseOrderBy("kills", "desc"),
-    window.firebaseLimit(10)
-  );
-  window.firebaseOnSnapshot(
-    leaderboardQuery,
-    (snapshot) => {
-      if (snapshot.empty) {
-        leaderboardList.innerHTML = "<li>尚無紀錄，快來寫下第一筆吧！</li>";
-        return;
+// 更新排行榜（一次性查詢，非即時同步）
+async function updateLeaderboard() {
+  if (!leaderboardListAll || !leaderboardListToday || !window.firebaseLeaderboardRef || !window.firebaseGetDocs) return;
+  
+  try {
+    // 查詢所有記錄（按擊殺數排序）
+    const leaderboardQuery = window.firebaseQuery(
+      window.firebaseLeaderboardRef,
+      window.firebaseOrderBy("kills", "desc"),
+      window.firebaseLimit(100) // 查詢更多記錄以便過濾今日
+    );
+    
+    const snapshot = await window.firebaseGetDocs(leaderboardQuery);
+    
+    // 處理所有記錄
+    const allData = [];
+    const todayData = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    snapshot.docs.forEach((doc) => {
+      const data = doc.data();
+      const record = {
+        name: data.name ?? "無名勇者",
+        kills: data.kills ?? 0,
+        score: data.score ?? 0,
+        date: data.date,
+      };
+      
+      allData.push(record);
+      
+      // 過濾今日記錄（客戶端過濾）
+      if (data.date) {
+        const recordDate = new Date(data.date);
+        if (recordDate >= today && recordDate < tomorrow) {
+          todayData.push(record);
+        }
       }
-      leaderboardList.innerHTML = "";
-      snapshot.docs.forEach((doc) => {
-        const data = doc.data();
-        const li = document.createElement("li");
-        const kills = data.kills ?? 0;
-        const score = data.score ?? 0;
-        li.innerHTML = `
-          <span class="lb-name">${escapeHtml(data.name ?? "無名勇者")}</span>
-          <span class="lb-kills">${kills} 擊殺</span>
-          <span class="lb-score">${score} 格</span>
-        `;
-        leaderboardList.appendChild(li);
-      });
-    },
-    (error) => {
-      console.error("Leaderboard subscribe failed", error);
-      leaderboardList.innerHTML = "<li>排行榜載入失敗。</li>";
+    });
+    
+    // 儲存總排行榜數據（用於判斷是否進入前10名）
+    leaderboardData = allData.slice(0, 10);
+    
+    // 更新總排行榜顯示（前5名）
+    renderLeaderboardList(leaderboardListAll, allData.slice(0, 5));
+    
+    // 更新今日排行榜顯示（前5名）
+    renderLeaderboardList(leaderboardListToday, todayData.slice(0, 5));
+    
+  } catch (error) {
+    console.error("Leaderboard update failed", error);
+    if (leaderboardListAll) {
+      leaderboardListAll.innerHTML = "<li>排行榜載入失敗。</li>";
     }
-  );
+    if (leaderboardListToday) {
+      leaderboardListToday.innerHTML = "<li>排行榜載入失敗。</li>";
+    }
+  }
+}
+
+// 渲染排行榜列表
+function renderLeaderboardList(listElement, data) {
+  if (!listElement) return;
+  
+  if (data.length === 0) {
+    listElement.innerHTML = "<li>尚無紀錄，快來寫下第一筆吧！</li>";
+    return;
+  }
+  
+  listElement.innerHTML = "";
+  data.forEach((record) => {
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <span class="lb-name">${escapeHtml(record.name)}</span>
+      <span class="lb-kills">${record.kills} 擊殺</span>
+      <span class="lb-score">${record.score} 格</span>
+    `;
+    listElement.appendChild(li);
+  });
 }
 
 function escapeHtml(text) {

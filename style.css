@@ -131,11 +131,16 @@ canvas {
   border: 1px solid rgba(148, 163, 184, 0.15);
   box-shadow: inset 0 0 20px rgba(20, 184, 166, 0.1);
   height: fit-content;
+  margin-bottom: 16px;
+}
+
+.leaderboard-card:last-child {
+  margin-bottom: 0;
 }
 
 .leaderboard-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
@@ -143,14 +148,6 @@ canvas {
 .leaderboard-header h3 {
   margin: 0;
   font-size: 1.1rem;
-}
-
-.live-indicator {
-  font-size: 0.8rem;
-  color: #34d399;
-  background: rgba(52, 211, 153, 0.1);
-  padding: 2px 8px;
-  border-radius: 999px;
 }
 
 .leaderboard-list {

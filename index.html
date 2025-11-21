@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>勇者貪食蛇 RPG</title>
     <link rel="stylesheet" href="style.css" />
     <script src="guide-config.js"></script>
@@ -65,84 +65,82 @@
     </script>
   </head>
   <body>
-    <div class="ui">
-      <h1>勇者貪食蛇 RPG</h1>
-      <div class="scoreboard">
-        <div class="score">隊伍長度：<span id="scoreValue">1</span></div>
-        <div class="score">擊殺數：<span id="killValue">0</span></div>
-      </div>
-      <div class="level-system">
-        <div class="level-info">
-          <span>等級：<span id="playerLevel">1</span></span>
+    <!-- 遊戲畫面（預設隱藏） -->
+    <div id="gameScreen" class="game-screen hidden">
+      <!-- HUD -->
+      <div class="ui">
+        <h1>勇者貪食蛇 RPG</h1>
+        <div class="scoreboard">
+          <div class="score">隊伍長度：<span id="scoreValue">1</span></div>
+          <div class="score">擊殺數：<span id="killValue">0</span></div>
         </div>
-        <div class="exp-bar-container">
-          <div class="exp-bar-label">
-            <span>經驗值：</span>
-            <span id="expText">0 / 100</span>
+        <div class="level-system">
+          <div class="level-info">
+            <span>等級：<span id="playerLevel">1</span></span>
           </div>
-          <div class="exp-bar">
-            <div id="expBarFill" class="exp-bar-fill"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="game-wrapper">
-      <aside class="leaderboard-panel">
-        <div class="leaderboard-card">
-          <div class="leaderboard-header">
-            <h3>全球排行榜</h3>
-          </div>
-          <ol id="leaderboardListAll" class="leaderboard-list">
-            <li>載入中...</li>
-          </ol>
-        </div>
-        <div class="leaderboard-card">
-          <div class="leaderboard-header">
-            <h3>今日排行榜</h3>
-          </div>
-          <ol id="leaderboardListToday" class="leaderboard-list">
-            <li>載入中...</li>
-          </ol>
-        </div>
-      </aside>
-      <canvas id="gameCanvas" width="800" height="600"></canvas>
-      <aside class="guide-panel" id="guidePanel">
-        <!-- 內容將由 JavaScript 動態載入 -->
-      </aside>
-    </div>
-    <div id="startOverlay" class="overlay">
-      <div class="overlay-content start-content">
-        <h2>歡迎來到勇者貪食蛇 RPG</h2>
-        <div class="start-wrapper">
-          <div class="start-form-section">
-            <div id="startLoader" class="start-loader">
-              <div class="loader-card">
-                <p id="loaderText">載入資產中... 0%</p>
-                <div class="loader-bar">
-                  <div id="loaderBar"></div>
-                </div>
-              </div>
+          <div class="exp-bar-container">
+            <div class="exp-bar-label">
+              <span>經驗值：</span>
+              <span id="expText">0 / 100</span>
             </div>
-            <div id="startForm" class="start-form hidden">
-              <div class="name-input-group">
-                <label for="startPlayerNameInput">輸入你的勇者名</label>
-                <input
-                  id="startPlayerNameInput"
-                  type="text"
-                  maxlength="12"
-                  placeholder="輸入你的勇者名"
-                  autocomplete="off"
-                />
-              </div>
-              <button id="startGameBtn" class="start-btn">啟動遊戲</button>
+            <div class="exp-bar">
+              <div id="expBarFill" class="exp-bar-fill"></div>
             </div>
           </div>
-          <aside class="start-guide-panel" id="startGuidePanel">
-            <!-- 內容將由 JavaScript 動態載入 -->
-          </aside>
+        </div>
+      </div>
+      
+      <!-- Canvas 容器 -->
+      <div class="canvas-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <!-- 遊戲中快捷按鈕（右上角） -->
+        <div class="game-controls">
+          <button id="pauseBtn" class="control-btn" title="暫停">⏸</button>
+          <button id="leaderboardBtn" class="control-btn" title="排行榜">📊</button>
+          <button id="guideBtn" class="control-btn" title="遊戲說明">❓</button>
         </div>
       </div>
     </div>
+
+    <!-- 主選單（首頁） -->
+    <div id="homeScreen" class="home-screen">
+      <div class="home-content">
+        <h1 class="home-title">勇者貪食蛇 RPG</h1>
+        
+        <!-- 載入畫面 -->
+        <div id="homeLoader" class="home-loader">
+          <div class="loader-card">
+            <p id="loaderText">載入資產中... 0%</p>
+            <div class="loader-bar">
+              <div id="loaderBar"></div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 主選單內容 -->
+        <div id="homeMenu" class="home-menu hidden">
+          <div class="name-input-group">
+            <label for="homePlayerNameInput">輸入你的勇者名</label>
+            <input
+              id="homePlayerNameInput"
+              type="text"
+              maxlength="12"
+              placeholder="輸入你的勇者名"
+              autocomplete="off"
+            />
+          </div>
+          
+          <div class="home-buttons">
+            <button id="homeStartBtn" class="home-btn primary">開始遊戲</button>
+            <button id="homeLeaderboardBtn" class="home-btn">排行榜</button>
+            <button id="homeGuideBtn" class="home-btn">遊戲說明</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 升級選擇 Modal -->
     <div id="upgradeOverlay" class="overlay hidden">
       <div class="overlay-content upgrade-content">
         <h2>升級！選擇一個強化</h2>
@@ -151,6 +149,8 @@
         </div>
       </div>
     </div>
+
+    <!-- Game Over Modal -->
     <div id="gameOverOverlay" class="overlay hidden">
       <div class="overlay-content">
         <h2>Game Over</h2>
@@ -170,9 +170,72 @@
           <button id="uploadScoreBtn">上傳分數</button>
           <p id="uploadStatus" class="upload-status"></p>
         </div>
-        <button id="restartBtn">重新開始</button>
+        <div class="game-over-buttons">
+          <button id="restartBtn" class="game-over-btn">🔄 重新開始</button>
+          <button id="homeBtn" class="game-over-btn">🏠 回主選單</button>
+        </div>
       </div>
     </div>
+
+    <!-- 排行榜 Modal -->
+    <div id="leaderboardModal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>排行榜</h2>
+          <button class="modal-close" id="leaderboardCloseBtn">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="leaderboard-card">
+            <div class="leaderboard-header">
+              <h3>全球排行榜</h3>
+            </div>
+            <ol id="leaderboardListAll" class="leaderboard-list">
+              <li>載入中...</li>
+            </ol>
+          </div>
+          <div class="leaderboard-card">
+            <div class="leaderboard-header">
+              <h3>今日排行榜</h3>
+            </div>
+            <ol id="leaderboardListToday" class="leaderboard-list">
+              <li>載入中...</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 遊戲說明 Modal -->
+    <div id="guideModal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>遊戲說明</h2>
+          <button class="modal-close" id="guideCloseBtn">×</button>
+        </div>
+        <div class="modal-body">
+          <div id="guidePanel">
+            <!-- 內容將由 JavaScript 動態載入 -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 暫停 Modal -->
+    <div id="pauseModal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>遊戲暫停</h2>
+          <button class="modal-close" id="pauseCloseBtn">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="pause-buttons">
+            <button id="pauseResumeBtn" class="pause-btn primary">繼續遊戲</button>
+            <button id="pauseHomeBtn" class="pause-btn">回主選單</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script src="script.js"></script>
   </body>
 </html>

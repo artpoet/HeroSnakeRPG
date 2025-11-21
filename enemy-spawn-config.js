@@ -17,20 +17,20 @@ window.ENEMY_SPAWN_CONFIG = {
       ],
     },
     {
-      // 玩家等級 3-4：主要出現等級 1，偶爾出現等級 2
+      // 玩家等級 3-4：等級 1-2 混合，開始出現等級 2
       playerLevelRange: [3, 4],
       enemyLevels: [
-        { level: 1, weight: 80 },   // 80% 機率
-        { level: 2, weight: 20 },   // 20% 機率
+        { level: 1, weight: 60 },   // 60% 機率
+        { level: 2, weight: 40 },   // 40% 機率
       ],
     },
     {
-      // 玩家等級 5-6：等級 1-3 混合
+      // 玩家等級 5-6：等級 2-4 混合（提高怪物強度）
       playerLevelRange: [5, 6],
       enemyLevels: [
-        { level: 1, weight: 50 },   // 50% 機率
-        { level: 2, weight: 35 },   // 35% 機率
-        { level: 3, weight: 15 },   // 15% 機率
+        { level: 2, weight: 50 },   // 50% 機率
+        { level: 3, weight: 35 },   // 35% 機率
+        { level: 4, weight: 15 },   // 15% 機率
       ],
     },
     {

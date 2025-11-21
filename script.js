@@ -13,18 +13,39 @@ const leaderboardListToday = document.getElementById("leaderboardListToday");
 const playerNameInput = document.getElementById("playerNameInput");
 const uploadScoreBtn = document.getElementById("uploadScoreBtn");
 const uploadStatus = document.getElementById("uploadStatus");
-const startOverlay = document.getElementById("startOverlay");
-const startPlayerNameInput = document.getElementById("startPlayerNameInput");
-const startGameBtn = document.getElementById("startGameBtn");
-const startGuidePanel = document.getElementById("startGuidePanel");
-const startLoader = document.getElementById("startLoader");
-const startForm = document.getElementById("startForm");
 const playerLevel = document.getElementById("playerLevel");
 const expText = document.getElementById("expText");
 const expBarFill = document.getElementById("expBarFill");
 const upgradeOverlay = document.getElementById("upgradeOverlay");
 const upgradeOptions = document.getElementById("upgradeOptions");
 const maxLevelValue = document.getElementById("maxLevelValue");
+
+// ========== 主選單相關元素 ==========
+const homeScreen = document.getElementById("homeScreen");
+const homeLoader = document.getElementById("homeLoader");
+const homeMenu = document.getElementById("homeMenu");
+const homePlayerNameInput = document.getElementById("homePlayerNameInput");
+const homeStartBtn = document.getElementById("homeStartBtn");
+const homeLeaderboardBtn = document.getElementById("homeLeaderboardBtn");
+const homeGuideBtn = document.getElementById("homeGuideBtn");
+
+// ========== 遊戲畫面相關元素 ==========
+const gameScreen = document.getElementById("gameScreen");
+const pauseBtn = document.getElementById("pauseBtn");
+const leaderboardBtn = document.getElementById("leaderboardBtn");
+const guideBtn = document.getElementById("guideBtn");
+
+// ========== Modal 相關元素 ==========
+const leaderboardModal = document.getElementById("leaderboardModal");
+const leaderboardCloseBtn = document.getElementById("leaderboardCloseBtn");
+const guideModal = document.getElementById("guideModal");
+const guideCloseBtn = document.getElementById("guideCloseBtn");
+const guidePanel = document.getElementById("guidePanel");
+const pauseModal = document.getElementById("pauseModal");
+const pauseCloseBtn = document.getElementById("pauseCloseBtn");
+const pauseResumeBtn = document.getElementById("pauseResumeBtn");
+const pauseHomeBtn = document.getElementById("pauseHomeBtn");
+const homeBtn = document.getElementById("homeBtn");
 
 const ARCHER_COOLDOWN = 1000; // 弓箭手冷卻 (毫秒)
 const ITEM_COLOR = "#a855f7"; // 道具顏色 (紫色)
@@ -130,8 +151,8 @@ let snake = [];
 let direction = { x: 1, y: 0 };
 let nextDirection = { x: 1, y: 0 };
 let facing = 1; // 1 = 向右，-1 = 向左
-let gridWidth = Math.floor(canvas.width / GRID_SIZE);
-let gridHeight = Math.floor(canvas.height / GRID_SIZE);
+let gridWidth = 20; // 初始值，會在 resizeCanvas 中更新
+let gridHeight = 15; // 初始值，會在 resizeCanvas 中更新
 let item = null;
 let recruitQueue = [];
 let enemies = [];
@@ -140,6 +161,7 @@ let effects = [];
 let lastMoveTime = 0;
 let lastEnemySpawn = 0;
 let isGameOver = false;
+let isPaused = false; // 遊戲暫停狀態
 let animationId = null;
 let leaderHP = LEADER_MAX_HP;
 let killCount = 0;
@@ -199,6 +221,7 @@ if (window.firebaseReady && window.firebaseLeaderboardRef) {
 
 // 儲存排行榜數據，用於判斷是否進入前10名
 let leaderboardData = [];
+let todayLeaderboardData = []; // 今日排行榜數據
 
 function createAsset(src, fallback) {
   const img = new Image();
@@ -257,31 +280,32 @@ function finishLoadingPhase() {
   if (assetsReady) return;
   assetsReady = true;
   setTimeout(() => {
-    // 隱藏載入畫面，顯示輸入表單
-    if (startLoader) {
-      startLoader.classList.add("hidden");
+    // 隱藏載入畫面，顯示主選單
+    if (homeLoader) {
+      homeLoader.classList.add("hidden");
     }
-    if (startForm) {
-      startForm.classList.remove("hidden");
+    if (homeMenu) {
+      homeMenu.classList.remove("hidden");
     }
     
-    // 檢查是否有保存的名字，如果有才開始遊戲
+    // 檢查是否有保存的名字，自動填入
     const savedName = localStorage.getItem("playerName");
     if (savedName && savedName.trim() !== "") {
-      // 有名字，直接開始遊戲（隱藏開始畫面）
-      if (startOverlay) {
-        startOverlay.classList.add("hidden");
-      }
-      startGame();
-    } else {
-      // 沒有名字，顯示開始畫面（輸入表單已顯示）
-      if (startOverlay) {
-        startOverlay.classList.remove("hidden");
-      }
-      if (startPlayerNameInput) {
-        startPlayerNameInput.focus();
+      if (homePlayerNameInput) {
+        homePlayerNameInput.value = savedName;
       }
     }
+    
+    // 確保主選單顯示
+    if (homeScreen) {
+      homeScreen.classList.remove("hidden");
+    }
+    if (gameScreen) {
+      gameScreen.classList.add("hidden");
+    }
+    
+    // 調整 Canvas 尺寸
+    resizeCanvas();
   }, 200);
 }
 
@@ -312,8 +336,53 @@ function getCurrentPlayerColor() {
   return currentPlayerColor;
 }
 
+// ========== Canvas 尺寸調整 ==========
+function resizeCanvas() {
+  if (!canvas) return;
+  
+  // 計算可用空間（考慮 UI 高度）
+  const maxWidth = Math.min(800, window.innerWidth - 24);
+  const maxHeight = Math.min(600, window.innerHeight - 200);
+  
+  // 維持 4:3 比例
+  let width = maxWidth;
+  let height = (width * 3) / 4;
+  
+  if (height > maxHeight) {
+    height = maxHeight;
+    width = (height * 4) / 3;
+  }
+  
+  // 設定 Canvas 尺寸
+  canvas.width = width;
+  canvas.height = height;
+  
+  // 更新網格尺寸
+  gridWidth = Math.floor(canvas.width / GRID_SIZE);
+  gridHeight = Math.floor(canvas.height / GRID_SIZE);
+}
+
+// 監聽視窗大小變化
+window.addEventListener("resize", () => {
+  if (!isGameOver && !homeScreen?.classList.contains("hidden")) {
+    resizeCanvas();
+  }
+});
+
 function startGame() {
   if (!assetsReady) return;
+  
+  // 調整 Canvas 尺寸
+  resizeCanvas();
+  
+  // 切換到遊戲畫面
+  if (homeScreen) {
+    homeScreen.classList.add("hidden");
+  }
+  if (gameScreen) {
+    gameScreen.classList.remove("hidden");
+  }
+  
   // 為當前玩家分配顏色
   currentPlayerColor = assignPlayerColor(currentPlayerId);
   const startX = Math.floor(gridWidth / 2);
@@ -341,6 +410,7 @@ function startGame() {
   killCount = 0;
   killValue.textContent = killCount;
   isGameOver = false;
+  isPaused = false;
   overlay.classList.add("hidden");
   lastMoveTime = 0;
   lastEnemySpawn = 0;
@@ -1282,13 +1352,29 @@ async function triggerGameOver() {
 // 判斷是否進入前10名
 function checkIfInLeaderboard() {
   if (!uploadScoreBtn) return;
-  // 如果排行榜數據不足10筆，或者當前擊殺數大於等於第10名的擊殺數，則顯示上傳按鈕
+  
+  // 檢查今日排行榜：如果今日排行榜沒有記錄或記錄少於10筆，顯示上傳按鈕
+  if (todayLeaderboardData.length === 0 || todayLeaderboardData.length < 10) {
+    uploadScoreBtn.style.display = "block";
+    return;
+  }
+  
+  // 檢查今日排行榜：如果當前擊殺數大於等於今日排行榜第10名的擊殺數，顯示上傳按鈕
+  const todayMinKills = todayLeaderboardData[todayLeaderboardData.length - 1]?.kills ?? 0;
+  if (killCount >= todayMinKills) {
+    uploadScoreBtn.style.display = "block";
+    return;
+  }
+  
+  // 檢查全球排行榜：如果全球排行榜數據不足10筆，顯示上傳按鈕
   if (leaderboardData.length < 10) {
     uploadScoreBtn.style.display = "block";
     return;
   }
-  const minKills = leaderboardData[leaderboardData.length - 1]?.kills ?? 0;
-  if (killCount >= minKills) {
+  
+  // 檢查全球排行榜：如果當前擊殺數大於等於全球排行榜第10名的擊殺數，顯示上傳按鈕
+  const globalMinKills = leaderboardData[leaderboardData.length - 1]?.kills ?? 0;
+  if (killCount >= globalMinKills) {
     uploadScoreBtn.style.display = "block";
   } else {
     uploadScoreBtn.style.display = "none";
@@ -1529,6 +1615,13 @@ function gameLoop(timestamp) {
     return;
   }
   
+  // 如果遊戲暫停，只繪製畫面，不更新邏輯
+  if (isPaused) {
+    draw();
+    animationId = requestAnimationFrame(gameLoop);
+    return;
+  }
+  
   // 如果正在選擇升級，暫停遊戲邏輯，但繼續繪製
   if (isChoosingUpgrade) {
     draw();
@@ -1627,6 +1720,9 @@ function gameLoop(timestamp) {
 }
 
 window.addEventListener("keydown", (event) => {
+  // 如果遊戲暫停或正在選擇升級，不處理方向鍵
+  if (isPaused || isChoosingUpgrade || isGameOver) return;
+  
   const map = {
     ArrowUp: { x: 0, y: -1 },
     ArrowDown: { x: 0, y: 1 },
@@ -1643,25 +1739,214 @@ window.addEventListener("keydown", (event) => {
   nextDirection = dir;
 });
 
-restartBtn.addEventListener("click", () => {
-  if (!assetsReady) return;
-  overlay.classList.add("hidden");
-  hasUploadedThisRun = false;
-  // 檢查是否有保存的名字
-  const savedName = localStorage.getItem("playerName");
-  if (savedName && savedName.trim() !== "") {
-    // 有名字，直接開始遊戲
-    startGame();
-  } else {
-    // 沒有名字，顯示開始畫面
-    if (startOverlay) {
-      startOverlay.classList.remove("hidden");
+// ========== 觸控手勢支持 ==========
+let touchStartX = 0;
+let touchStartY = 0;
+let touchStartTime = 0;
+
+canvas?.addEventListener("touchstart", (event) => {
+  if (isPaused || isChoosingUpgrade || isGameOver) return;
+  event.preventDefault();
+  const touch = event.touches[0];
+  touchStartX = touch.clientX;
+  touchStartY = touch.clientY;
+  touchStartTime = Date.now();
+}, { passive: false });
+
+canvas?.addEventListener("touchend", (event) => {
+  if (isPaused || isChoosingUpgrade || isGameOver) return;
+  event.preventDefault();
+  const touch = event.changedTouches[0];
+  const touchEndX = touch.clientX;
+  const touchEndY = touch.clientY;
+  const touchEndTime = Date.now();
+  
+  const deltaX = touchEndX - touchStartX;
+  const deltaY = touchEndY - touchStartY;
+  const deltaTime = touchEndTime - touchStartTime;
+  
+  // 如果觸控時間太長（超過 500ms）或移動距離太小，忽略
+  if (deltaTime > 500 || (Math.abs(deltaX) < 20 && Math.abs(deltaY) < 20)) {
+    return;
+  }
+  
+  // 判斷主要移動方向
+  if (Math.abs(deltaX) > Math.abs(deltaY)) {
+    // 水平移動
+    if (deltaX > 0) {
+      // 向右
+      const dir = { x: 1, y: 0 };
+      if (dir.x !== -direction.x || dir.y !== -direction.y) {
+        nextDirection = dir;
+      }
+    } else {
+      // 向左
+      const dir = { x: -1, y: 0 };
+      if (dir.x !== -direction.x || dir.y !== -direction.y) {
+        nextDirection = dir;
+      }
     }
-    if (startPlayerNameInput) {
-      startPlayerNameInput.focus();
+  } else {
+    // 垂直移動
+    if (deltaY > 0) {
+      // 向下
+      const dir = { x: 0, y: 1 };
+      if (dir.x !== -direction.x || dir.y !== -direction.y) {
+        nextDirection = dir;
+      }
+    } else {
+      // 向上
+      const dir = { x: 0, y: -1 };
+      if (dir.x !== -direction.x || dir.y !== -direction.y) {
+        nextDirection = dir;
+      }
     }
   }
-});
+}, { passive: false });
+
+// ========== Modal 控制函數 ==========
+function showModal(modal) {
+  if (!modal) return;
+  modal.classList.remove("hidden");
+  isPaused = true;
+}
+
+function hideModal(modal) {
+  if (!modal) return;
+  modal.classList.add("hidden");
+  // 只有在沒有其他 Modal 顯示時才取消暫停
+  if (!leaderboardModal?.classList.contains("hidden") || 
+      !guideModal?.classList.contains("hidden") || 
+      !pauseModal?.classList.contains("hidden")) {
+    return;
+  }
+  isPaused = false;
+}
+
+function showLeaderboard() {
+  showModal(leaderboardModal);
+  updateLeaderboard();
+}
+
+function showGuide() {
+  showModal(guideModal);
+}
+
+function showPause() {
+  showModal(pauseModal);
+}
+
+function hidePause() {
+  hideModal(pauseModal);
+}
+
+function goToHome() {
+  // 取消動畫
+  if (animationId) {
+    cancelAnimationFrame(animationId);
+    animationId = null;
+  }
+  
+  // 隱藏所有 Modal 和 Overlay
+  if (overlay) overlay.classList.add("hidden");
+  if (leaderboardModal) leaderboardModal.classList.add("hidden");
+  if (guideModal) guideModal.classList.add("hidden");
+  if (pauseModal) pauseModal.classList.add("hidden");
+  if (upgradeOverlay) upgradeOverlay.classList.add("hidden");
+  
+  // 切換到主選單
+  if (gameScreen) gameScreen.classList.add("hidden");
+  if (homeScreen) homeScreen.classList.remove("hidden");
+  
+  // 重置狀態
+  isPaused = false;
+  isGameOver = false;
+}
+
+// ========== 事件監聽器 ==========
+// 主選單按鈕
+if (homeStartBtn) {
+  homeStartBtn.addEventListener("click", () => {
+    const name = homePlayerNameInput ? homePlayerNameInput.value.trim() : "";
+    if (!name) {
+      alert("請先輸入你的勇者名！");
+      if (homePlayerNameInput) {
+        homePlayerNameInput.focus();
+      }
+      return;
+    }
+    // 保存名字
+    localStorage.setItem("playerName", name);
+    // 開始遊戲
+    if (assetsReady) {
+      startGame();
+    }
+  });
+}
+
+if (homePlayerNameInput) {
+  homePlayerNameInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      homeStartBtn?.click();
+    }
+  });
+}
+
+if (homeLeaderboardBtn) {
+  homeLeaderboardBtn.addEventListener("click", showLeaderboard);
+}
+
+if (homeGuideBtn) {
+  homeGuideBtn.addEventListener("click", showGuide);
+}
+
+// 遊戲中快捷按鈕
+if (pauseBtn) {
+  pauseBtn.addEventListener("click", showPause);
+}
+
+if (leaderboardBtn) {
+  leaderboardBtn.addEventListener("click", showLeaderboard);
+}
+
+if (guideBtn) {
+  guideBtn.addEventListener("click", showGuide);
+}
+
+// Modal 關閉按鈕
+if (leaderboardCloseBtn) {
+  leaderboardCloseBtn.addEventListener("click", () => hideModal(leaderboardModal));
+}
+
+if (guideCloseBtn) {
+  guideCloseBtn.addEventListener("click", () => hideModal(guideModal));
+}
+
+if (pauseCloseBtn) {
+  pauseCloseBtn.addEventListener("click", hidePause);
+}
+
+if (pauseResumeBtn) {
+  pauseResumeBtn.addEventListener("click", hidePause);
+}
+
+if (pauseHomeBtn) {
+  pauseHomeBtn.addEventListener("click", goToHome);
+}
+
+// Game Over 按鈕
+if (restartBtn) {
+  restartBtn.addEventListener("click", () => {
+    if (!assetsReady) return;
+    overlay.classList.add("hidden");
+    hasUploadedThisRun = false;
+    startGame();
+  });
+}
+
+if (homeBtn) {
+  homeBtn.addEventListener("click", goToHome);
+}
 
 uploadScoreBtn?.addEventListener("click", handleScoreUpload);
 playerNameInput?.addEventListener("keydown", (event) => {
@@ -1795,6 +2080,8 @@ async function updateLeaderboard() {
     
     // 儲存總排行榜數據（用於判斷是否進入前10名）
     leaderboardData = allData.slice(0, 10);
+    // 儲存今日排行榜數據（用於判斷是否進入前10名）
+    todayLeaderboardData = todayData.slice(0, 10);
     
     // 更新總排行榜顯示（前5名）
     renderLeaderboardList(leaderboardListAll, allData.slice(0, 5));
@@ -1887,14 +2174,8 @@ function renderGuidePanelContent(panelElement) {
 
 // 渲染快速指引面板
 function renderGuidePanel() {
-  const guidePanel = document.getElementById("guidePanel");
-  renderGuidePanelContent(guidePanel);
-}
-
-// 渲染開始畫面的快速指引
-function renderStartGuidePanel() {
-  if (startGuidePanel) {
-    renderGuidePanelContent(startGuidePanel);
+  if (guidePanel) {
+    renderGuidePanelContent(guidePanel);
   }
 }
 
@@ -1902,68 +2183,10 @@ function renderStartGuidePanel() {
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", () => {
     renderGuidePanel();
-    renderStartGuidePanel();
-    checkAndShowStartScreen();
+    resizeCanvas();
   });
 } else {
   renderGuidePanel();
-  renderStartGuidePanel();
-  checkAndShowStartScreen();
-}
-
-// 檢查並顯示開始畫面
-function checkAndShowStartScreen() {
-  const savedName = localStorage.getItem("playerName");
-  if (!savedName || savedName.trim() === "") {
-    // 沒有保存的名字，顯示開始畫面
-    if (startOverlay) {
-      startOverlay.classList.remove("hidden");
-    }
-    // 載入時顯示載入畫面，隱藏輸入表單
-    if (startLoader) {
-      startLoader.classList.remove("hidden");
-    }
-    if (startForm) {
-      startForm.classList.add("hidden");
-    }
-  } else {
-    // 有保存的名字，隱藏開始畫面（等待資源載入後直接開始遊戲）
-    if (startOverlay) {
-      startOverlay.classList.add("hidden");
-    }
-  }
-}
-
-// 啟動遊戲按鈕事件
-if (startGameBtn) {
-  startGameBtn.addEventListener("click", () => {
-    const name = startPlayerNameInput ? startPlayerNameInput.value.trim() : "";
-    if (!name) {
-      alert("請先輸入你的勇者名！");
-      if (startPlayerNameInput) {
-        startPlayerNameInput.focus();
-      }
-      return;
-    }
-    // 保存名字
-    localStorage.setItem("playerName", name);
-    // 隱藏開始畫面
-    if (startOverlay) {
-      startOverlay.classList.add("hidden");
-    }
-    // 如果資源已載入，開始遊戲
-    if (assetsReady) {
-      startGame();
-    }
-  });
-}
-
-// Enter 鍵啟動遊戲
-if (startPlayerNameInput) {
-  startPlayerNameInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      startGameBtn?.click();
-    }
-  });
+  resizeCanvas();
 }
 

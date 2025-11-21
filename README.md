@@ -3,29 +3,89 @@
 一款以勇者隊伍為主題的 HTML5 Canvas 貪食蛇。玩家在網格上操控隊長收集道具、招募弓箭手／法師／騎士，並抵禦持續追擊的敵人。
 
 ## 專案結構
-| 路徑 | 說明 |
-| --- | --- |
-| `public/index.html` | 入口頁與核心常數定義。 |
-| `public/styles/main.css` | UI 與 Canvas 外框樣式。 |
-| `public/scripts/main.js` | 遊戲邏輯、動畫迴圈、資產與 Firestore 互動。 |
-| `public/assets/images/` | 角色與道具圖示。 |
-| `docs/GDD.md` | 遊戲設計文件 (Game Design Document)。 |
-| `docs/CHANGELOG.md` | 更新紀錄。 |
-| `docs/player-guide.html` | 玩家導覽手冊。 |
+
+```
+HeroSnakeRPG/
+├── index.html              # 入口頁面，包含遊戲常數定義和 Firebase 初始化
+├── style.css               # 所有樣式定義（包含響應式設計）
+├── script.js               # 遊戲核心邏輯（約 1250 行）
+├── guide-config.js         # 快速指引配置（企劃人員可直接修改）
+├── *.png                   # 角色與道具圖片（根目錄）
+│   ├── leader.png          # 隊長
+│   ├── archer.png          # 弓箭手
+│   ├── mage.png            # 法師
+│   ├── knight.png          # 騎士
+│   ├── enemy.png           # 敵人
+│   └── item.png            # 招募道具
+├── docs/
+│   ├── GDD.md              # 遊戲設計文件（詳細規則與參數）
+│   └── CHANGELOG.md        # 更新紀錄（包含程式結構說明）
+└── GUIDE-CONFIG-README.md  # 快速指引配置說明
+```
 
 ## 執行方式
-1. 直接以瀏覽器開啟 `public/index.html`。
-2. 使用方向鍵或 WASD 操控隊伍。
-3. Game Over 後可輸入暱稱上傳分數，或按「重新開始」重啟。
+
+1. **直接開啟**：以瀏覽器開啟 `index.html`（支援 `file://` 協議）
+2. **本地伺服器**（推薦）：使用任何靜態伺服器（如 VS Code Live Server、Python `http.server`）
+3. **控制方式**：使用方向鍵或 WASD 操控隊伍
+4. **開始遊戲**：
+   - 第一次進入時，需要輸入名字並點擊「啟動遊戲」
+   - 之後會自動使用保存的名字，直接開始遊戲
+
+## 核心功能
+
+### 遊戲機制
+- **網格移動**：隊長在網格上移動，收集道具招募勇者
+- **平滑插值**：使用視覺位置插值，消除移動閃爍
+- **角色面向**：根據移動方向自動改變角色面向（左右翻轉）
+- **血量系統**：隊長有血量，被撞扣血，擊殺敵人回復
+- **職業系統**：弓箭手（遠程）、法師（範圍傷害）、騎士（防禦）
+
+### UI 功能
+- **開始畫面**：第一次進入要求輸入名字，右側顯示快速指引
+- **載入畫面**：資產載入時顯示進度條，側邊面板可正常查看
+- **排行榜**：左側即時顯示全球前 10 名成績（依擊殺數排序）
+- **快速指引**：右側常駐圖文說明，內容可獨立配置
+- **名字管理**：自動保存名字，上傳分數時自動使用
+
+### 技術特色
+- **降級機制**：圖片載入失敗時自動使用 Canvas 繪製替代圖形
+- **平滑動畫**：使用 `requestAnimationFrame` 和插值實現流暢移動
+- **即時同步**：Firebase Firestore 即時排行榜更新
+- **本地儲存**：使用 `localStorage` 保存玩家名字
+- **多玩家預留**：顏色系統為未來的多玩家功能預留
 
 ## 文件
-- 詳細規則與參數：`docs/GDD.md`
-- 玩家用圖文介紹：`docs/player-guide.html`
-- 版本記錄：`docs/CHANGELOG.md`
+
+- **詳細規則與參數**：`docs/GDD.md`
+- **更新紀錄與程式結構**：`docs/CHANGELOG.md`
+- **快速指引配置說明**：`GUIDE-CONFIG-README.md`
 
 ## 第三方服務
-- Firebase Firestore：儲存與即時同步全球排行榜，需要網路連線才可上傳／讀取分數。
+
+- **Firebase Firestore**：儲存與即時同步全球排行榜
+  - 需要網路連線才可上傳／讀取分數
+  - 配置已整合在 `index.html` 中
+
+## 開發說明
+
+### 修改遊戲參數
+所有遊戲常數定義在 `index.html` 的 `<script>` 標籤開頭，可直接修改：
+```javascript
+const GRID_SIZE = 40;
+const GAME_SPEED = 150;
+// ...
+```
+
+### 修改快速指引
+直接編輯 `guide-config.js` 檔案，修改後重新整理頁面即可看到更新。
+
+### 程式結構
+- **核心邏輯**：`script.js` 包含所有遊戲邏輯
+- **主要變數**：遊戲狀態、移動系統、玩家系統、計分系統
+- **主要函數**：遊戲循環、碰撞檢測、職業技能、UI 管理、資源管理
+- 詳細說明請參考 `docs/CHANGELOG.md` 的「程式結構說明」章節
 
 ## 授權
-本專案採 MIT License 授權，詳見 `LICENSE`。
 
+本專案採 MIT License 授權，詳見 `LICENSE`。

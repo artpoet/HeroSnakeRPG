@@ -13,6 +13,10 @@ const leaderboardList = document.getElementById("leaderboardList");
 const playerNameInput = document.getElementById("playerNameInput");
 const uploadScoreBtn = document.getElementById("uploadScoreBtn");
 const uploadStatus = document.getElementById("uploadStatus");
+const startOverlay = document.getElementById("startOverlay");
+const startPlayerNameInput = document.getElementById("startPlayerNameInput");
+const startGameBtn = document.getElementById("startGameBtn");
+const startGuidePanel = document.getElementById("startGuidePanel");
 
 const ARCHER_COOLDOWN = 1000; // 弓箭手冷卻 (毫秒)
 const ITEM_COLOR = "#a855f7"; // 道具顏色 (紫色)
@@ -107,10 +111,17 @@ const ASSETS = Object.fromEntries(
 );
 
 const SEGMENT_TYPES = ["archer", "mage", "knight"];
+const BORDER_COLORS = ["#ef4444", "#eab308", "#3b82f6", "#22c55e"]; // 紅、黃、藍、綠
+
+// 玩家顏色系統（為多玩家預留）
+let playerColors = {}; // { playerId: color }
+let currentPlayerId = "player1"; // 當前玩家 ID（目前只有一個玩家）
+let currentPlayerColor = null; // 當前玩家的顏色
 
 let snake = [];
 let direction = { x: 1, y: 0 };
 let nextDirection = { x: 1, y: 0 };
+let facing = 1; // 1 = 向右，-1 = 向左
 let gridWidth = Math.floor(canvas.width / GRID_SIZE);
 let gridHeight = Math.floor(canvas.height / GRID_SIZE);
 let item = null;
@@ -147,25 +158,7 @@ function createAsset(src, fallback) {
   const img = new Image();
   let loaded = false;
   let counted = false;
-  img.onload = () => {
-    loaded = true;
-    markAssetComplete();
-  };
-  img.onerror = () => {
-    loaded = false;
-    markAssetComplete();
-  };
-  img.src = src;
-  return {
-    draw(x, y, size) {
-      if (loaded) {
-        ctx.drawImage(img, x, y, size, size);
-      } else {
-        fallback(x, y, size);
-      }
-    },
-  };
-
+  
   function markAssetComplete() {
     if (counted) return;
     counted = true;
@@ -175,6 +168,36 @@ function createAsset(src, fallback) {
       finishLoadingPhase();
     }
   }
+  
+  img.onload = () => {
+    loaded = true;
+    markAssetComplete();
+  };
+  img.onerror = () => {
+    loaded = false;
+    markAssetComplete();
+  };
+  img.src = src;
+  
+  return {
+    draw(x, y, size, facing = 1) {
+      if (loaded) {
+        if (facing === -1) {
+          // 向左：翻轉圖片
+          ctx.save();
+          ctx.translate(x + size, y);
+          ctx.scale(-1, 1);
+          ctx.drawImage(img, 0, 0, size, size);
+          ctx.restore();
+        } else {
+          // 向右：正常繪製
+          ctx.drawImage(img, x, y, size, size);
+        }
+      } else {
+        fallback(x, y, size);
+      }
+    },
+  };
 }
 
 function updateLoaderProgress() {
@@ -189,7 +212,23 @@ function finishLoadingPhase() {
   assetsReady = true;
   setTimeout(() => {
     loaderOverlay?.classList.add("hidden");
-    startGame();
+    // 檢查是否有保存的名字，如果有才開始遊戲
+    const savedName = localStorage.getItem("playerName");
+    if (savedName && savedName.trim() !== "") {
+      // 有名字，直接開始遊戲
+      if (startOverlay) {
+        startOverlay.classList.add("hidden");
+      }
+      startGame();
+    } else {
+      // 沒有名字，顯示開始畫面
+      if (startOverlay) {
+        startOverlay.classList.remove("hidden");
+      }
+      if (startPlayerNameInput) {
+        startPlayerNameInput.focus();
+      }
+    }
   }, 200);
 }
 
@@ -199,18 +238,47 @@ function drawFallbackBlock(color, drawSymbol, x, y, size) {
   drawSymbol();
 }
 
+// 為玩家分配顏色（如果該玩家還沒有顏色）
+function assignPlayerColor(playerId) {
+  if (!playerColors[playerId]) {
+    // 找出已經使用的顏色
+    const usedColors = Object.values(playerColors);
+    // 找出第一個未使用的顏色
+    const availableColor = BORDER_COLORS.find(color => !usedColors.includes(color));
+    // 如果所有顏色都被使用，則循環使用
+    playerColors[playerId] = availableColor || BORDER_COLORS[Object.keys(playerColors).length % BORDER_COLORS.length];
+  }
+  return playerColors[playerId];
+}
+
+// 獲取當前玩家的顏色
+function getCurrentPlayerColor() {
+  if (!currentPlayerColor) {
+    currentPlayerColor = assignPlayerColor(currentPlayerId);
+  }
+  return currentPlayerColor;
+}
+
 function startGame() {
   if (!assetsReady) return;
+  // 為當前玩家分配顏色
+  currentPlayerColor = assignPlayerColor(currentPlayerId);
+  const startX = Math.floor(gridWidth / 2);
+  const startY = Math.floor(gridHeight / 2);
   snake = [
     {
-      x: Math.floor(gridWidth / 2),
-      y: Math.floor(gridHeight / 2),
-      role: null,
+      x: startX,
+      y: startY,
+      renderX: startX, // 視覺位置（用於平滑移動）
+      renderY: startY,
+      role: "leader",
       lastShot: 0,
+      borderColor: currentPlayerColor,
     },
   ];
   direction = { x: 1, y: 0 };
   nextDirection = { x: 1, y: 0 };
+  facing = 1; // 重置面向為向右
   recruitQueue = [];
   enemies = [];
   projectiles = [];
@@ -278,6 +346,10 @@ function spawnEnemy() {
 
 function moveSnake(timestamp) {
   direction = nextDirection;
+  // 更新面向（只在左右移動時）
+  if (direction.x !== 0) {
+    facing = direction.x > 0 ? 1 : -1;
+  }
   const head = snake[0];
   const nextX = head.x + direction.x;
   const nextY = head.y + direction.y;
@@ -295,14 +367,28 @@ function moveSnake(timestamp) {
   const previousPositions = snake.map((segment) => ({
     x: segment.x,
     y: segment.y,
+    renderX: segment.renderX !== undefined ? segment.renderX : segment.x,
+    renderY: segment.renderY !== undefined ? segment.renderY : segment.y,
   }));
 
+  // 更新邏輯位置
   head.x = nextX;
   head.y = nextY;
 
   for (let i = 1; i < snake.length; i++) {
     snake[i].x = previousPositions[i - 1].x;
     snake[i].y = previousPositions[i - 1].y;
+    // 保持視覺位置不變，等待插值
+    if (snake[i].renderX === undefined) {
+      snake[i].renderX = previousPositions[i - 1].renderX;
+      snake[i].renderY = previousPositions[i - 1].renderY;
+    }
+  }
+  
+  // 確保頭部的視覺位置也正確初始化
+  if (head.renderX === undefined) {
+    head.renderX = previousPositions[0].renderX;
+    head.renderY = previousPositions[0].renderY;
   }
 
   if (item && nextX === item.x && nextY === item.y) {
@@ -318,8 +404,11 @@ function moveSnake(timestamp) {
     snake.push({
       x: lastPrev.x,
       y: lastPrev.y,
+      renderX: lastPrev.renderX || lastPrev.x,
+      renderY: lastPrev.renderY || lastPrev.y,
       role: newRole,
       lastShot: 0,
+      borderColor: getCurrentPlayerColor(), // 使用當前玩家的顏色
     });
   }
 
@@ -663,10 +752,14 @@ function draw() {
   }
 
   snake.forEach((segment, index) => {
-    const x = segment.x * GRID_SIZE;
-    const y = segment.y * GRID_SIZE;
+    // 使用插值後的視覺位置
+    const renderX = (segment.renderX !== undefined ? segment.renderX : segment.x) * GRID_SIZE;
+    const renderY = (segment.renderY !== undefined ? segment.renderY : segment.y) * GRID_SIZE;
+    const x = renderX;
+    const y = renderY;
     if (index === 0) {
-      ASSETS.leader.draw(x, y, GRID_SIZE);
+      // 隊長使用當前的 facing
+      ASSETS.leader.draw(x, y, GRID_SIZE, facing);
       if (leaderHP < LEADER_MAX_HP) {
         drawHealthBar(
           x,
@@ -678,15 +771,49 @@ function draw() {
         );
       }
     } else if (segment.role && ASSETS[segment.role]) {
-      ASSETS[segment.role].draw(x, y, GRID_SIZE);
+      // 其他勇者根據前一個 segment 的位置決定面向
+      let segmentFacing = facing;
+      if (index > 0) {
+        const prevSegment = snake[index - 1];
+        const currentX = segment.x;
+        const prevX = prevSegment.x;
+        if (currentX !== prevX) {
+          // 有左右移動，根據位置決定面向
+          segmentFacing = currentX > prevX ? 1 : -1;
+        } else {
+          // 沒有左右移動（上下移動），保持前一個 segment 的 facing
+          if (prevSegment.facing !== undefined) {
+            segmentFacing = prevSegment.facing;
+          } else if (index > 1) {
+            // 如果前一個也沒有 facing，繼續往前找
+            let foundFacing = facing;
+            for (let j = index - 1; j >= 0; j--) {
+              if (snake[j].facing !== undefined) {
+                foundFacing = snake[j].facing;
+                break;
+              }
+            }
+            segmentFacing = foundFacing;
+          }
+        }
+      }
+      segment.facing = segmentFacing; // 保存面向供下次使用
+      ASSETS[segment.role].draw(x, y, GRID_SIZE, segmentFacing);
     } else {
       drawFallbackBlock("#64748b", () => {}, x, y, GRID_SIZE);
     }
+    // 繪製法師光環（在邊框之前）
     if (segment.role === "mage") {
       ctx.strokeStyle = "rgba(59,130,246,0.2)";
       ctx.beginPath();
       ctx.arc(x + GRID_SIZE / 2, y + GRID_SIZE / 2, AURA_RADIUS, 0, Math.PI * 2);
       ctx.stroke();
+    }
+    // 繪製隨機顏色邊框（最後繪製，確保在最上層）
+    if (segment.borderColor) {
+      ctx.strokeStyle = segment.borderColor;
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x + 1, y + 1, GRID_SIZE - 2, GRID_SIZE - 2);
     }
   });
 
@@ -805,6 +932,40 @@ function gameLoop(timestamp) {
     lastMoveTime = timestamp;
   }
 
+  // 平滑插值：更新視覺位置（每一幀都執行，讓移動更平滑）
+  const timeSinceMove = timestamp - lastMoveTime;
+  const moveProgress = Math.min(timeSinceMove / GAME_SPEED, 1);
+  
+  snake.forEach((segment) => {
+    // 初始化視覺位置
+    if (segment.renderX === undefined) {
+      segment.renderX = segment.x;
+      segment.renderY = segment.y;
+    }
+    
+    // 計算目標位置（像素座標）
+    const targetX = segment.x;
+    const targetY = segment.y;
+    const currentRenderX = segment.renderX;
+    const currentRenderY = segment.renderY;
+    
+    // 計算差值
+    const diffX = targetX - currentRenderX;
+    const diffY = targetY - currentRenderY;
+    
+    // 如果已經到達目標位置，直接設置
+    if (Math.abs(diffX) < 0.001 && Math.abs(diffY) < 0.001) {
+      segment.renderX = targetX;
+      segment.renderY = targetY;
+    } else {
+      // 使用線性插值，根據時間進度平滑移動
+      // 使用更平滑的插值速度（每幀移動更多，讓移動更流暢）
+      const lerpSpeed = 0.15; // 調整這個值可以改變平滑度（0.1-0.3 之間較好）
+      segment.renderX = currentRenderX + diffX * lerpSpeed;
+      segment.renderY = currentRenderY + diffY * lerpSpeed;
+    }
+  });
+
   if (timestamp - lastEnemySpawn >= ENEMY_SPAWN_RATE) {
     spawnEnemy();
     lastEnemySpawn = timestamp;
@@ -839,7 +1000,22 @@ window.addEventListener("keydown", (event) => {
 
 restartBtn.addEventListener("click", () => {
   if (!assetsReady) return;
-  startGame();
+  overlay.classList.add("hidden");
+  hasUploadedThisRun = false;
+  // 檢查是否有保存的名字
+  const savedName = localStorage.getItem("playerName");
+  if (savedName && savedName.trim() !== "") {
+    // 有名字，直接開始遊戲
+    startGame();
+  } else {
+    // 沒有名字，顯示開始畫面
+    if (startOverlay) {
+      startOverlay.classList.remove("hidden");
+    }
+    if (startPlayerNameInput) {
+      startPlayerNameInput.focus();
+    }
+  }
 });
 
 uploadScoreBtn?.addEventListener("click", handleScoreUpload);
@@ -858,7 +1034,9 @@ if (TOTAL_ASSETS === 0) {
 function resetUploadForm() {
   if (!playerNameInput || !uploadScoreBtn || !uploadStatus) return;
   if (!hasUploadedThisRun) {
-    playerNameInput.value = "";
+    // 從 localStorage 讀取保存的名字，如果沒有則為空
+    const savedName = localStorage.getItem("playerName") || "";
+    playerNameInput.value = savedName;
   }
   uploadScoreBtn.disabled = hasUploadedThisRun;
   uploadStatus.textContent = hasUploadedThisRun ? "已上傳至排行榜！" : "";
@@ -876,7 +1054,11 @@ async function handleScoreUpload() {
   ) {
     return;
   }
-  const name = playerNameInput.value.trim();
+  // 優先使用輸入框的值，如果為空則使用保存的名字
+  let name = playerNameInput.value.trim();
+  if (!name) {
+    name = localStorage.getItem("playerName") || "";
+  }
   if (!name) {
     uploadStatus.textContent = "請先輸入名字。";
     uploadStatus.className = "upload-status error";
@@ -895,6 +1077,8 @@ async function handleScoreUpload() {
       date: new Date().toISOString(),
     });
     hasUploadedThisRun = true;
+    // 保存名字到 localStorage
+    localStorage.setItem("playerName", name);
     uploadStatus.textContent = "已上傳至排行榜！";
     uploadStatus.className = "upload-status success";
   } catch (error) {
@@ -951,10 +1135,9 @@ function escapeHtml(text) {
     .replace(/"/g, "&quot;");
 }
 
-// 渲染快速指引面板
-function renderGuidePanel() {
-  const guidePanel = document.getElementById("guidePanel");
-  if (!guidePanel || !window.GUIDE_CONFIG) {
+// 渲染快速指引面板（通用函數）
+function renderGuidePanelContent(panelElement) {
+  if (!panelElement || !window.GUIDE_CONFIG) {
     console.warn("Guide panel or config not found");
     return;
   }
@@ -987,13 +1170,85 @@ function renderGuidePanel() {
     html += `<p class="tip">${escapeHtml(config.tip)}</p>`;
   }
   
-  guidePanel.innerHTML = html;
+  panelElement.innerHTML = html;
+}
+
+// 渲染快速指引面板
+function renderGuidePanel() {
+  const guidePanel = document.getElementById("guidePanel");
+  renderGuidePanelContent(guidePanel);
+}
+
+// 渲染開始畫面的快速指引
+function renderStartGuidePanel() {
+  if (startGuidePanel) {
+    renderGuidePanelContent(startGuidePanel);
+  }
 }
 
 // 頁面載入時渲染快速指引
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", renderGuidePanel);
+  document.addEventListener("DOMContentLoaded", () => {
+    renderGuidePanel();
+    renderStartGuidePanel();
+    checkAndShowStartScreen();
+  });
 } else {
   renderGuidePanel();
+  renderStartGuidePanel();
+  checkAndShowStartScreen();
+}
+
+// 檢查並顯示開始畫面
+function checkAndShowStartScreen() {
+  const savedName = localStorage.getItem("playerName");
+  if (!savedName || savedName.trim() === "") {
+    // 沒有保存的名字，顯示開始畫面
+    if (startOverlay) {
+      startOverlay.classList.remove("hidden");
+    }
+    if (startPlayerNameInput) {
+      startPlayerNameInput.value = "";
+      startPlayerNameInput.focus();
+    }
+  } else {
+    // 有保存的名字，隱藏開始畫面（等待資源載入後直接開始遊戲）
+    if (startOverlay) {
+      startOverlay.classList.add("hidden");
+    }
+  }
+}
+
+// 啟動遊戲按鈕事件
+if (startGameBtn) {
+  startGameBtn.addEventListener("click", () => {
+    const name = startPlayerNameInput ? startPlayerNameInput.value.trim() : "";
+    if (!name) {
+      alert("請先輸入你的勇者名！");
+      if (startPlayerNameInput) {
+        startPlayerNameInput.focus();
+      }
+      return;
+    }
+    // 保存名字
+    localStorage.setItem("playerName", name);
+    // 隱藏開始畫面
+    if (startOverlay) {
+      startOverlay.classList.add("hidden");
+    }
+    // 如果資源已載入，開始遊戲
+    if (assetsReady) {
+      startGame();
+    }
+  });
+}
+
+// Enter 鍵啟動遊戲
+if (startPlayerNameInput) {
+  startPlayerNameInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      startGameBtn?.click();
+    }
+  });
 }
 

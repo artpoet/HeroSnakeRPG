@@ -78,17 +78,7 @@
           </ol>
         </div>
       </aside>
-      <div style="position: relative;">
-        <canvas id="gameCanvas" width="800" height="600"></canvas>
-        <div id="loaderOverlay" class="loader-overlay">
-          <div class="loader-card">
-            <p id="loaderText">載入資產中... 0%</p>
-            <div class="loader-bar">
-              <div id="loaderBar"></div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <canvas id="gameCanvas" width="800" height="600"></canvas>
       <aside class="guide-panel" id="guidePanel">
         <!-- 內容將由 JavaScript 動態載入 -->
       </aside>
@@ -98,17 +88,27 @@
         <h2>歡迎來到勇者貪食蛇 RPG</h2>
         <div class="start-wrapper">
           <div class="start-form-section">
-            <div class="name-input-group">
-              <label for="startPlayerNameInput">輸入你的勇者名</label>
-              <input
-                id="startPlayerNameInput"
-                type="text"
-                maxlength="12"
-                placeholder="輸入你的勇者名"
-                autocomplete="off"
-              />
+            <div id="startLoader" class="start-loader">
+              <div class="loader-card">
+                <p id="loaderText">載入資產中... 0%</p>
+                <div class="loader-bar">
+                  <div id="loaderBar"></div>
+                </div>
+              </div>
             </div>
-            <button id="startGameBtn" class="start-btn">啟動遊戲</button>
+            <div id="startForm" class="start-form hidden">
+              <div class="name-input-group">
+                <label for="startPlayerNameInput">輸入你的勇者名</label>
+                <input
+                  id="startPlayerNameInput"
+                  type="text"
+                  maxlength="12"
+                  placeholder="輸入你的勇者名"
+                  autocomplete="off"
+                />
+              </div>
+              <button id="startGameBtn" class="start-btn">啟動遊戲</button>
+            </div>
           </div>
           <aside class="start-guide-panel" id="startGuidePanel">
             <!-- 內容將由 JavaScript 動態載入 -->

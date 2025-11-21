@@ -4,7 +4,6 @@ const scoreValue = document.getElementById("scoreValue");
 const killValue = document.getElementById("killValue");
 const overlay = document.getElementById("gameOverOverlay");
 const restartBtn = document.getElementById("restartBtn");
-const loaderOverlay = document.getElementById("loaderOverlay");
 const loaderText = document.getElementById("loaderText");
 const loaderBar = document.getElementById("loaderBar");
 const maxLengthValue = document.getElementById("maxLengthValue");
@@ -17,6 +16,8 @@ const startOverlay = document.getElementById("startOverlay");
 const startPlayerNameInput = document.getElementById("startPlayerNameInput");
 const startGameBtn = document.getElementById("startGameBtn");
 const startGuidePanel = document.getElementById("startGuidePanel");
+const startLoader = document.getElementById("startLoader");
+const startForm = document.getElementById("startForm");
 
 const ARCHER_COOLDOWN = 1000; // 弓箭手冷卻 (毫秒)
 const ITEM_COLOR = "#a855f7"; // 道具顏色 (紫色)
@@ -211,17 +212,24 @@ function finishLoadingPhase() {
   if (assetsReady) return;
   assetsReady = true;
   setTimeout(() => {
-    loaderOverlay?.classList.add("hidden");
+    // 隱藏載入畫面，顯示輸入表單
+    if (startLoader) {
+      startLoader.classList.add("hidden");
+    }
+    if (startForm) {
+      startForm.classList.remove("hidden");
+    }
+    
     // 檢查是否有保存的名字，如果有才開始遊戲
     const savedName = localStorage.getItem("playerName");
     if (savedName && savedName.trim() !== "") {
-      // 有名字，直接開始遊戲
+      // 有名字，直接開始遊戲（隱藏開始畫面）
       if (startOverlay) {
         startOverlay.classList.add("hidden");
       }
       startGame();
     } else {
-      // 沒有名字，顯示開始畫面
+      // 沒有名字，顯示開始畫面（輸入表單已顯示）
       if (startOverlay) {
         startOverlay.classList.remove("hidden");
       }
@@ -1207,9 +1215,12 @@ function checkAndShowStartScreen() {
     if (startOverlay) {
       startOverlay.classList.remove("hidden");
     }
-    if (startPlayerNameInput) {
-      startPlayerNameInput.value = "";
-      startPlayerNameInput.focus();
+    // 載入時顯示載入畫面，隱藏輸入表單
+    if (startLoader) {
+      startLoader.classList.remove("hidden");
+    }
+    if (startForm) {
+      startForm.classList.add("hidden");
     }
   } else {
     // 有保存的名字，隱藏開始畫面（等待資源載入後直接開始遊戲）

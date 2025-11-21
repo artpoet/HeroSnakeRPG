@@ -1,5 +1,55 @@
 # 更新紀錄
 
+## 2025-11-21（最新）
+
+### 排行榜系統優化
+- **調整功能**：排行榜分為「全球排行榜」和「今日排行榜」，上下排列顯示
+- **實作細節**：
+  - 移除切換按鈕，改為同時顯示兩個排行榜卡片
+  - 全球排行榜顯示前 5 名（總排行）
+  - 今日排行榜顯示前 5 名（當日排行）
+  - 使用客戶端過濾方式處理今日排行榜，避免 Firebase 查詢錯誤
+  - 查詢所有記錄後，在 JavaScript 中過濾今天的記錄
+  - 判斷是否進入前 10 名時，仍使用總排行榜的前 10 名數據
+- **技術改進**：
+  - 修復 Firebase 查詢錯誤（`where` 不等式過濾與 `orderBy` 衝突）
+  - 改為一次性查詢所有記錄，然後在客戶端過濾和排序
+
+### 邊界視覺化
+- **新增功能**：繪製邊界線，讓玩家清楚看到遊戲區域邊界
+- **實作細節**：
+  - 在畫布上繪製白色虛線邊界線（3px 寬）
+  - 邊界線對應實際的遊戲區域（`gridWidth * GRID_SIZE`）
+  - 幫助玩家判斷是否接近邊界，減少「還沒碰到就死了」的困惑
+- **邊界檢測邏輯**：
+  - 邊界檢測基於邏輯位置（網格座標），非視覺位置
+  - 當 `nextX >= gridWidth` 或 `nextY >= gridHeight` 時觸發遊戲結束
+  - 由於平滑移動（lerp），視覺位置可能尚未到達邊界，但邏輯位置已超出
+
+### 角色面向系統調整
+- **調整功能**：勇者根據自己的左右位移改變面向，而非跟隨 leader
+- **實作細節**：
+  - 在 `moveSnake()` 中，每個 segment 根據自己的前後位置更新 `facing`
+  - 比較移動前後的 x 座標（`prevX` 和 `currentX`）
+  - 如果有左右移動（`currentX !== prevX`），根據移動方向更新 `facing`
+  - 如果沒有左右移動（上下移動），保持原來的 `facing` 不變
+  - 在 `draw()` 中直接使用 segment 的 `facing`，如果沒有則使用 leader 的 `facing`
+- **行為說明**：
+  - 當勇者向右移動時，面向右（facing = 1）
+  - 當勇者向左移動時，面向左（facing = -1）
+  - 當勇者上下移動時，保持原來的面向不變
+
+### 繪製順序優化
+- **調整功能**：調整角色和血條的繪製順序，確保正確的階層顯示
+- **實作細節**：
+  - 角色繪製改為從後往前（從 `snake.length - 1` 到 `0`）
+  - 後面的角色先繪製，前面的角色後繪製（前面的會覆蓋後面的）
+  - 血條繪製從角色繪製中分離，在所有角色繪製完成後統一繪製
+  - 確保血條顯示在最上層，不會被任何角色遮住
+- **效果**：
+  - Leader 和前面的隊員會顯示在後面的隊員之上
+  - 血條永遠顯示在最上層，清晰可見
+
 ## 2025-11-21
 
 ### 角色面向系統
@@ -113,24 +163,155 @@
 
 ### 核心檔案
 - **`index.html`**：入口頁面，包含遊戲常數定義、Firebase 初始化、UI 結構
+  - 遊戲常數定義在 `<script>` 標籤開頭（`GRID_SIZE`、`GAME_SPEED` 等）
+  - Firebase SDK 透過 ES Module 導入，並暴露全局變數給 `script.js` 使用
+  - UI 結構包含：遊戲畫布、左側排行榜、右側快速指引、開始畫面、Game Over 覆蓋層
 - **`style.css`**：所有樣式定義，包含響應式設計
-- **`script.js`**：遊戲核心邏輯（約 1250 行）
+  - 暗色系主題，配合遊戲風格
+  - Flexbox 布局，確保畫布和側邊面板正確排列
+  - 排行榜和快速指引面板固定寬度，畫布固定 800x600
+- **`script.js`**：遊戲核心邏輯（約 1350 行）
+  - 所有遊戲邏輯、UI 管理、Firebase 互動都在此檔案
 
 ### 配置檔案
 - **`guide-config.js`**：快速指引配置，可獨立修改
+  - 結構：`title`、`intro`、`items[]`、`tip`
+  - 企劃人員可直接修改此檔案，無需觸碰核心程式碼
 - **`docs/GDD.md`**：遊戲設計文件
+  - 詳細的遊戲規則、參數、機制說明
 - **`docs/CHANGELOG.md`**：本文件
+  - 所有更新紀錄和程式結構說明
 
-### 主要變數與狀態
-- **遊戲狀態**：`snake[]`（隊伍）、`enemies[]`、`projectiles[]`、`effects[]`、`item`、`isGameOver`
-- **移動系統**：`direction`、`nextDirection`、`facing`（面向）、`renderX/renderY`（視覺位置插值）
-- **玩家系統**：`playerColors`、`currentPlayerId`、`currentPlayerColor`
-- **計分系統**：`killCount`、`maxLengthThisRun`、`leaderHP`
-- **Firebase**：透過 `window` 物件暴露的全局變數（`firebaseDb`、`firebaseLeaderboardRef` 等）
+### 主要變數與狀態（script.js）
 
-### 主要函數
-- **遊戲循環**：`gameLoop()`、`moveSnake()`、`draw()`
-- **碰撞檢測**：`handleEnemyCollisions()`、`rectCircleCollide()`
-- **職業技能**：`handleArcherAttacks()`、`handleMageAura()`
-- **UI 管理**：`renderGuidePanel()`、`subscribeLeaderboard()`、`handleScoreUpload()`
-- **資源管理**：`createAsset()`、`finishLoadingPhase()`
+#### 遊戲狀態
+- `snake[]`：隊伍陣列，每個元素包含 `x`、`y`、`renderX`、`renderY`、`role`、`facing`、`borderColor`、`lastShot` 等
+- `enemies[]`：敵人陣列，包含位置、血量、移動狀態等
+- `projectiles[]`：投射物陣列（弓箭）
+- `effects[]`：特效陣列（爆炸、擊殺、受傷等）
+- `item`：當前道具物件（`null` 或包含 `x`、`y`）
+- `isGameOver`：遊戲是否結束
+
+#### 移動系統
+- `direction`：當前移動方向 `{ x, y }`
+- `nextDirection`：下一個移動方向（用於防止 180 度折返）
+- `facing`：隊長面向（1 = 向右，-1 = 向左）
+- `renderX`、`renderY`：每個 segment 的視覺位置（用於平滑插值）
+- `gridWidth`、`gridHeight`：網格寬度和高度（根據畫布大小計算）
+
+#### 玩家系統
+- `playerColors`：物件，儲存每個玩家的顏色 `{ playerId: color }`
+- `currentPlayerId`：當前玩家 ID（目前固定為 "player1"）
+- `currentPlayerColor`：當前玩家的顏色（用於邊框）
+
+#### 計分系統
+- `killCount`：擊殺數
+- `maxLengthThisRun`：本局最長隊伍長度
+- `leaderHP`：隊長當前血量
+
+#### Firebase 相關
+- 透過 `window` 物件暴露的全局變數：
+  - `window.firebaseDb`：Firestore 資料庫實例
+  - `window.firebaseLeaderboardRef`：排行榜集合引用
+  - `window.firebaseAddDoc`：添加文件函數
+  - `window.firebaseQuery`、`window.firebaseOrderBy`、`window.firebaseLimit`、`window.firebaseGetDocs`、`window.firebaseWhere`：查詢相關函數
+  - `window.firebaseReady`：Firebase 是否初始化完成
+
+#### UI 元素引用
+- 所有 DOM 元素在檔案開頭統一引用
+- 排行榜：`leaderboardListAll`（全球）、`leaderboardListToday`（今日）
+- 開始畫面：`startOverlay`、`startPlayerNameInput`、`startGameBtn`、`startLoader`、`startForm`
+- Game Over：`overlay`、`playerNameInput`、`uploadScoreBtn`、`restartBtn`
+
+### 主要函數（script.js）
+
+#### 遊戲循環
+- `gameLoop(timestamp)`：主遊戲循環，使用 `requestAnimationFrame`
+  - 處理移動時機（`GAME_SPEED` 間隔）
+  - 執行平滑插值計算（每幀更新視覺位置）
+  - 更新敵人、投射物、特效
+  - 處理碰撞檢測
+  - 繪製畫面
+- `moveSnake(timestamp)`：移動蛇（隊伍）
+  - 更新 leader 位置
+  - 更新所有 segment 位置（跟隨前一個）
+  - 邊界檢測
+  - 碰撞檢測（撞到自己）
+  - 根據位移更新每個 segment 的 `facing`
+  - 處理道具收集和新勇者加入
+- `draw()`：繪製所有遊戲元素
+  - 繪製邊界線
+  - 繪製道具
+  - 繪製角色（從後往前，確保前面的在上層）
+  - 繪製血條（最後繪製，確保在最上層）
+  - 繪製敵人、投射物、特效
+
+#### 碰撞檢測
+- `handleEnemyCollisions()`：處理敵人與隊伍的碰撞
+  - 檢查 leader 是否撞到敵人
+  - 檢查隊伍成員是否撞到敵人
+  - 處理騎士守護機制
+- `rectCircleCollide(rect, circle)`：矩形與圓形碰撞檢測
+- `handleBodyCollision(enemy, removeSet)`：處理隊伍成員與敵人的碰撞
+  - 優先使用騎士代為犧牲
+  - 無騎士時移除被撞成員
+
+#### 職業技能
+- `handleArcherAttacks(timestamp)`：處理弓箭手攻擊
+  - 檢查冷卻時間
+  - 尋找最近敵人
+  - 發射箭矢
+- `handleMageAura()`：處理法師光環傷害
+  - 對範圍內敵人造成持續傷害
+- `damageEnemy(enemy, amount)`：對敵人造成傷害
+  - 更新敵人血量
+  - 顯示傷害數字
+  - 處理擊殺
+
+#### UI 管理
+- `renderGuidePanel()`：渲染遊戲中的快速指引面板
+- `renderStartGuidePanel()`：渲染開始畫面的快速指引
+- `renderGuidePanelContent(panelElement, config)`：通用函數，根據配置渲染指引內容
+- `updateLeaderboard()`：更新排行榜（一次性查詢）
+  - 查詢所有記錄（按擊殺數排序）
+  - 客戶端過濾今日記錄
+  - 更新全球排行榜和今日排行榜顯示
+- `renderLeaderboardList(listElement, data)`：渲染排行榜列表
+- `checkIfInLeaderboard()`：檢查當前分數是否進入前 10 名
+  - 決定是否顯示「上傳分數」按鈕
+- `handleScoreUpload()`：處理分數上傳
+  - 驗證輸入
+  - 上傳到 Firebase
+  - 更新本地儲存的名字
+- `checkAndShowStartScreen()`：檢查並顯示開始畫面
+  - 根據 `localStorage` 中是否有名字決定是否顯示
+
+#### 資源管理
+- `createAsset(src, fallback)`：創建資產物件
+  - 載入圖片
+  - 提供 `draw(x, y, size, facing)` 方法
+  - 支援圖片翻轉（根據 `facing`）
+  - 圖片載入失敗時使用 fallback 函數
+- `finishLoadingPhase()`：完成載入階段
+  - 隱藏載入畫面
+  - 根據是否有保存的名字決定顯示開始畫面或直接開始遊戲
+
+#### 玩家顏色系統
+- `assignPlayerColor(playerId)`：為玩家分配顏色
+  - 從 `BORDER_COLORS` 中選擇未使用的顏色
+- `getCurrentPlayerColor()`：獲取當前玩家顏色
+  - 如果沒有分配，自動分配
+
+#### 其他工具函數
+- `startGame()`：開始新遊戲
+  - 初始化所有遊戲狀態
+  - 分配玩家顏色
+  - 重置計分
+  - 啟動遊戲循環
+- `triggerGameOver()`：觸發遊戲結束
+  - 更新排行榜
+  - 檢查是否進入前 10 名
+  - 顯示 Game Over 覆蓋層
+- `drawHealthBar(x, y, width, height, current, max)`：繪製血條
+- `drawFallbackBlock(color, drawFn, x, y, size)`：繪製降級圖形
+- `escapeHtml(text)`：轉義 HTML 特殊字符

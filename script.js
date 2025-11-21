@@ -357,15 +357,22 @@ function spawnEnemy() {
   });
 }
 
+/**
+ * 移動蛇（隊伍）
+ * @param {number} timestamp - 當前時間戳
+ * 
+ * 功能：
+ * 1. 更新 leader 位置
+ * 2. 更新所有 segment 位置（跟隨前一個）
+ * 3. 邊界檢測和碰撞檢測
+ * 4. 根據位移更新每個 segment 的 facing（面向）
+ * 5. 處理道具收集和新勇者加入
+ */
 function moveSnake(timestamp) {
   direction = nextDirection;
-  // 更新面向（只在左右移動時）
+  // 更新 leader 面向（只在左右移動時）
   if (direction.x !== 0) {
     facing = direction.x > 0 ? 1 : -1;
-    // 所有勇者都跟 leader 保持相同面向
-    snake.forEach((segment) => {
-      segment.facing = facing;
-    });
   }
   const head = snake[0];
   const nextX = head.x + direction.x;
@@ -373,10 +380,9 @@ function moveSnake(timestamp) {
 
   // 邊界檢測：確保下一個位置在有效範圍內
   // 有效範圍：x 從 0 到 gridWidth-1，y 從 0 到 gridHeight-1
-  // 使用嚴格的大於檢查，確保只有在真正超出邊界時才觸發
+  // 注意：邊界檢測基於邏輯位置（網格座標），非視覺位置
+  // 由於平滑移動（lerp），視覺位置可能尚未到達邊界，但邏輯位置已超出
   if (nextX < 0 || nextY < 0 || nextX >= gridWidth || nextY >= gridHeight) {
-    // 只有在真正超出邊界時才觸發遊戲結束
-    // 如果只是到達最後一格，不應該觸發（但實際上 >= 已經包含了這個情況）
     return triggerGameOver();
   }
 
@@ -397,9 +403,20 @@ function moveSnake(timestamp) {
   head.x = nextX;
   head.y = nextY;
 
+  // 更新所有 segment 的位置和面向
   for (let i = 1; i < snake.length; i++) {
+    // 保存移動前的位置，用於判斷面向
+    const prevX = snake[i].x;
+    // 更新位置：移動到前一個 segment 之前的位置
     snake[i].x = previousPositions[i - 1].x;
     snake[i].y = previousPositions[i - 1].y;
+    // 根據自己的左右位移決定面向
+    const currentX = snake[i].x;
+    if (currentX !== prevX) {
+      // 有左右移動，根據移動方向決定面向
+      snake[i].facing = currentX > prevX ? 1 : -1; // 向右 = 1，向左 = -1
+    }
+    // 如果沒有左右移動（上下移動），保持原來的 facing（不更新）
     // 保持視覺位置不變，等待插值
     if (snake[i].renderX === undefined) {
       snake[i].renderX = previousPositions[i - 1].renderX;
@@ -805,7 +822,12 @@ function draw() {
     ASSETS.item.draw(x, y, GRID_SIZE);
   }
 
-  snake.forEach((segment, index) => {
+  // 繪製所有角色（從後往前，確保前面的角色覆蓋後面的）
+  // 繪製順序：後面的角色先繪製，前面的角色後繪製（在上層）
+  // 這樣 leader 和前面的隊員會顯示在後面的隊員之上
+  for (let i = snake.length - 1; i >= 0; i--) {
+    const segment = snake[i];
+    const index = i;
     // 使用插值後的視覺位置
     const renderX = (segment.renderX !== undefined ? segment.renderX : segment.x) * GRID_SIZE;
     const renderY = (segment.renderY !== undefined ? segment.renderY : segment.y) * GRID_SIZE;
@@ -814,18 +836,10 @@ function draw() {
     if (index === 0) {
       // 隊長使用當前的 facing
       ASSETS.leader.draw(x, y, GRID_SIZE, facing);
-      if (leaderHP < LEADER_MAX_HP) {
-        drawHealthBar(
-          x,
-          y - 8,
-          GRID_SIZE,
-          4,
-          leaderHP,
-          LEADER_MAX_HP
-        );
-      }
     } else if (segment.role && ASSETS[segment.role]) {
-      // 所有勇者都跟 leader 保持相同面向
+      // 其他勇者根據自己的左右位移決定面向
+      // facing 已經在 moveSnake 中根據自己的位移更新了
+      // 如果沒有 facing（上下移動），使用 leader 的 facing 作為預設值
       const segmentFacing = segment.facing !== undefined ? segment.facing : facing;
       ASSETS[segment.role].draw(x, y, GRID_SIZE, segmentFacing);
     } else {
@@ -844,6 +858,28 @@ function draw() {
       ctx.lineWidth = 3;
       ctx.strokeRect(x + 1, y + 1, GRID_SIZE - 2, GRID_SIZE - 2);
     }
+  }
+  
+  // 最後繪製所有血條，確保血條顯示在最上層，不會被任何角色遮住
+  snake.forEach((segment, index) => {
+    const renderX = (segment.renderX !== undefined ? segment.renderX : segment.x) * GRID_SIZE;
+    const renderY = (segment.renderY !== undefined ? segment.renderY : segment.y) * GRID_SIZE;
+    const x = renderX;
+    const y = renderY;
+    if (index === 0) {
+      // 隊長血條
+      if (leaderHP < LEADER_MAX_HP) {
+        drawHealthBar(
+          x,
+          y - 8,
+          GRID_SIZE,
+          4,
+          leaderHP,
+          LEADER_MAX_HP
+        );
+      }
+    }
+    // 其他勇者目前沒有血條，如果未來需要可以在此添加
   });
 
   enemies.forEach((enemy) => {
@@ -1124,7 +1160,18 @@ async function handleScoreUpload() {
   }
 }
 
-// 更新排行榜（一次性查詢，非即時同步）
+/**
+ * 更新排行榜（一次性查詢，非即時同步）
+ * 
+ * 功能：
+ * 1. 查詢所有記錄（按擊殺數排序）
+ * 2. 客戶端過濾今日記錄（避免 Firebase 查詢錯誤）
+ * 3. 更新全球排行榜和今日排行榜顯示（各顯示前 5 名）
+ * 4. 儲存總排行榜前 10 名數據（用於判斷是否進入前 10 名）
+ * 
+ * 注意：使用客戶端過濾而非 Firebase where 查詢，因為
+ * Firebase 不允許在使用 where 不等式過濾 date 的同時，用 orderBy 按 kills 排序
+ */
 async function updateLeaderboard() {
   if (!leaderboardListAll || !leaderboardListToday || !window.firebaseLeaderboardRef || !window.firebaseGetDocs) return;
   
@@ -1186,7 +1233,11 @@ async function updateLeaderboard() {
   }
 }
 
-// 渲染排行榜列表
+/**
+ * 渲染排行榜列表
+ * @param {HTMLElement} listElement - 排行榜列表元素
+ * @param {Array} data - 排行榜數據陣列
+ */
 function renderLeaderboardList(listElement, data) {
   if (!listElement) return;
   

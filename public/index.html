@@ -84,6 +84,15 @@
           </li>
         </ul>
         <p class="tip">操作方式：WASD / 方向鍵控制；保持隊伍迴旋可避開敵人。</p>
+        <div class="leaderboard-card">
+          <div class="leaderboard-header">
+            <h3>全球排行榜</h3>
+            <span class="live-indicator">即時同步</span>
+          </div>
+          <ol id="leaderboardList" class="leaderboard-list">
+            <li>載入中...</li>
+          </ol>
+        </div>
       </aside>
     </div>
     <div id="gameOverOverlay" class="overlay hidden">
@@ -93,10 +102,21 @@
           <p>最長隊伍：<span id="maxLengthValue">1</span></p>
           <p>擊殺數：<span id="finalKillValue">0</span></p>
         </div>
+        <div class="upload-form">
+          <input
+            id="playerNameInput"
+            type="text"
+            maxlength="12"
+            placeholder="輸入你的勇者名"
+            autocomplete="off"
+          />
+          <button id="uploadScoreBtn">上傳分數</button>
+          <p id="uploadStatus" class="upload-status"></p>
+        </div>
         <button id="restartBtn">重新開始</button>
       </div>
     </div>
-    <script src="./scripts/main.js"></script>
+    <script type="module" src="./scripts/main.js"></script>
   </body>
 </html>
 

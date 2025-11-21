@@ -1,3 +1,14 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  query,
+  orderBy,
+  limit,
+  onSnapshot,
+} from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 const scoreValue = document.getElementById("scoreValue");
@@ -9,6 +20,10 @@ const loaderText = document.getElementById("loaderText");
 const loaderBar = document.getElementById("loaderBar");
 const maxLengthValue = document.getElementById("maxLengthValue");
 const finalKillValue = document.getElementById("finalKillValue");
+const leaderboardList = document.getElementById("leaderboardList");
+const playerNameInput = document.getElementById("playerNameInput");
+const uploadScoreBtn = document.getElementById("uploadScoreBtn");
+const uploadStatus = document.getElementById("uploadStatus");
 
 const ARCHER_COOLDOWN = 1000; // 弓箭手冷卻 (毫秒)
 const ITEM_COLOR = "#a855f7"; // 道具顏色 (紫色)
@@ -16,6 +31,15 @@ const LEADER_MAX_HP = 150; // 隊長血量上限
 const LEADER_COLLISION_DAMAGE = 35; // 隊長被撞傷害
 const LEADER_HEAL_ON_KILL = 10; // 擊殺敵人回復量
 const ASSET_BASE_PATH = "./assets/images/";
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyC1p5BWY1ygxY3_HR25m7uGQo41LBE50dM",
+  authDomain: "herosnakerpg.firebaseapp.com",
+  projectId: "herosnakerpg",
+  storageBucket: "herosnakerpg.firebasestorage.app",
+  messagingSenderId: "285447440332",
+  appId: "1:285447440332:web:8e8214fa4564b0cf1aff69",
+  measurementId: "G-RV2GN5VQMJ",
+};
 
 const assetDefinitions = {
   leader: {
@@ -123,6 +147,13 @@ let killCount = 0;
 let maxLengthThisRun = 1;
 let assetsLoaded = 0;
 let assetsReady = false;
+let isUploading = false;
+let hasUploadedThisRun = false;
+
+const firebaseApp = initializeApp(FIREBASE_CONFIG);
+const db = getFirestore(firebaseApp);
+const leaderboardRef = collection(db, "leaderboard");
+subscribeLeaderboard();
 
 function createAsset(src, fallback) {
   const img = new Image();
@@ -208,6 +239,8 @@ function startGame() {
   maxLengthThisRun = snake.length;
   maxLengthValue.textContent = snake.length;
   finalKillValue.textContent = killCount;
+  hasUploadedThisRun = false;
+  resetUploadForm();
   if (animationId) cancelAnimationFrame(animationId);
   animationId = requestAnimationFrame(gameLoop);
 }
@@ -628,6 +661,7 @@ function triggerGameOver() {
   isGameOver = true;
   maxLengthValue.textContent = maxLengthThisRun;
   finalKillValue.textContent = killCount;
+  resetUploadForm();
   overlay.classList.remove("hidden");
 }
 
@@ -820,8 +854,108 @@ restartBtn.addEventListener("click", () => {
   startGame();
 });
 
+uploadScoreBtn?.addEventListener("click", handleScoreUpload);
+playerNameInput?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    handleScoreUpload();
+  }
+});
+
 updateLoaderProgress();
 if (TOTAL_ASSETS === 0) {
   finishLoadingPhase();
+}
+
+function resetUploadForm() {
+  if (!playerNameInput || !uploadScoreBtn || !uploadStatus) return;
+  if (!hasUploadedThisRun) {
+    playerNameInput.value = "";
+  }
+  uploadScoreBtn.disabled = hasUploadedThisRun;
+  uploadStatus.textContent = hasUploadedThisRun ? "已上傳至排行榜！" : "";
+  uploadStatus.className = hasUploadedThisRun
+    ? "upload-status success"
+    : "upload-status";
+}
+
+async function handleScoreUpload() {
+  if (
+    !playerNameInput ||
+    !uploadScoreBtn ||
+    !uploadStatus ||
+    hasUploadedThisRun
+  ) {
+    return;
+  }
+  const name = playerNameInput.value.trim();
+  if (!name) {
+    uploadStatus.textContent = "請先輸入名字。";
+    uploadStatus.className = "upload-status error";
+    return;
+  }
+  if (isUploading) return;
+  isUploading = true;
+  uploadScoreBtn.disabled = true;
+  uploadStatus.textContent = "上傳中...";
+  uploadStatus.className = "upload-status";
+  try {
+    await addDoc(leaderboardRef, {
+      name,
+      score: maxLengthThisRun,
+      date: new Date().toISOString(),
+    });
+    hasUploadedThisRun = true;
+    uploadStatus.textContent = "已上傳至排行榜！";
+    uploadStatus.className = "upload-status success";
+  } catch (error) {
+    console.error("Failed to upload score", error);
+    uploadStatus.textContent = "上傳失敗，請稍後再試。";
+    uploadStatus.className = "upload-status error";
+    uploadScoreBtn.disabled = false;
+  } finally {
+    isUploading = false;
+  }
+}
+
+function subscribeLeaderboard() {
+  if (!leaderboardList) return;
+  const leaderboardQuery = query(
+    leaderboardRef,
+    orderBy("score", "desc"),
+    limit(10)
+  );
+  onSnapshot(
+    leaderboardQuery,
+    (snapshot) => {
+      if (snapshot.empty) {
+        leaderboardList.innerHTML = "<li>尚無紀錄，快來寫下第一筆吧！</li>";
+        return;
+      }
+      leaderboardList.innerHTML = "";
+      snapshot.docs.forEach((doc) => {
+        const data = doc.data();
+        const li = document.createElement("li");
+        const dateLabel = data.date
+          ? new Date(data.date).toLocaleDateString("zh-TW")
+          : "";
+        li.innerHTML = `<strong>${escapeHtml(data.name ?? "無名勇者")}</strong><span>${data.score ?? 0} 格 · ${dateLabel}</span>`;
+        leaderboardList.appendChild(li);
+      });
+    },
+    (error) => {
+      console.error("Leaderboard subscribe failed", error);
+      leaderboardList.innerHTML = "<li>排行榜載入失敗。</li>";
+    }
+  );
+}
+
+function escapeHtml(text) {
+  if (!text) return "";
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 

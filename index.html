@@ -6,6 +6,8 @@
     <title>勇者貪食蛇 RPG</title>
     <link rel="stylesheet" href="style.css" />
     <script src="guide-config.js"></script>
+    <script src="upgrade-config.js"></script>
+    <script src="enemy-spawn-config.js"></script>
     <script>
       const GRID_SIZE = 40; // 網格大小 (像素)，決定角色與地圖格子的尺寸
       const GAME_SPEED = 150; // 遊戲速度 (毫秒)，數值越小移動越快
@@ -69,6 +71,20 @@
         <div class="score">隊伍長度：<span id="scoreValue">1</span></div>
         <div class="score">擊殺數：<span id="killValue">0</span></div>
       </div>
+      <div class="level-system">
+        <div class="level-info">
+          <span>等級：<span id="playerLevel">1</span></span>
+        </div>
+        <div class="exp-bar-container">
+          <div class="exp-bar-label">
+            <span>經驗值：</span>
+            <span id="expText">0 / 100</span>
+          </div>
+          <div class="exp-bar">
+            <div id="expBarFill" class="exp-bar-fill"></div>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="game-wrapper">
       <aside class="leaderboard-panel">
@@ -127,12 +143,21 @@
         </div>
       </div>
     </div>
+    <div id="upgradeOverlay" class="overlay hidden">
+      <div class="overlay-content upgrade-content">
+        <h2>升級！選擇一個強化</h2>
+        <div class="upgrade-options" id="upgradeOptions">
+          <!-- 選項將由 JavaScript 動態生成 -->
+        </div>
+      </div>
+    </div>
     <div id="gameOverOverlay" class="overlay hidden">
       <div class="overlay-content">
         <h2>Game Over</h2>
         <div class="stats">
           <p>最長隊伍：<span id="maxLengthValue">1</span></p>
           <p>擊殺數：<span id="finalKillValue">0</span></p>
+          <p>最高等級：<span id="maxLevelValue">1</span></p>
         </div>
         <div class="upload-form">
           <input

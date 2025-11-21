@@ -19,6 +19,12 @@ const startGameBtn = document.getElementById("startGameBtn");
 const startGuidePanel = document.getElementById("startGuidePanel");
 const startLoader = document.getElementById("startLoader");
 const startForm = document.getElementById("startForm");
+const playerLevel = document.getElementById("playerLevel");
+const expText = document.getElementById("expText");
+const expBarFill = document.getElementById("expBarFill");
+const upgradeOverlay = document.getElementById("upgradeOverlay");
+const upgradeOptions = document.getElementById("upgradeOptions");
+const maxLevelValue = document.getElementById("maxLevelValue");
 
 const ARCHER_COOLDOWN = 1000; // 弓箭手冷卻 (毫秒)
 const ITEM_COLOR = "#a855f7"; // 道具顏色 (紫色)
@@ -142,6 +148,40 @@ let assetsLoaded = 0;
 let assetsReady = false;
 let isUploading = false;
 let hasUploadedThisRun = false;
+
+// ========== 等級與經驗值系統 ==========
+// 玩家等級和經驗值，經驗值滿了會升級
+// 升級公式：所需經驗值 = baseExp * (等級 ^ expMultiplier)
+// 配置檔案：upgrade-config.js
+let playerLevelValue = 1;      // 玩家當前等級
+let playerExp = 0;              // 玩家當前經驗值
+let maxLevelThisRun = 1;       // 本局最高等級
+let gameStartTime = 0;          // 遊戲開始時間（用於計算怪物等級）
+
+// ========== 升級系統 ==========
+// 追蹤各升級的等級，用於計算升級後的效果
+// 配置檔案：upgrade-config.js
+let upgradeLevels = {
+  mage: {
+    auraRange: 0,     // 法師光環範圍等級
+    auraDamage: 0,    // 法師光環傷害等級
+  },
+  archer: {
+    arrowCount: 0,    // 弓箭數量等級
+    arrowSpeed: 0,    // 射擊速度等級
+  },
+  knight: {
+    hitPoints: 0,     // 可被攻擊次數等級
+    deathBonus: 0,    // 死亡後增加隊伍長度等級
+  },
+  leader: {
+    maxHp: 0,         // 隊長最大血量等級
+    damage: 0,       // 隊長傷害等級
+  },
+};
+
+// 升級選擇狀態：選擇升級時會鎖血，避免在選擇過程中死亡
+let isChoosingUpgrade = false;
 
 window.updateLeaderboard = updateLeaderboard;
 
@@ -309,6 +349,21 @@ function startGame() {
   maxLengthValue.textContent = snake.length;
   finalKillValue.textContent = killCount;
   hasUploadedThisRun = false;
+  
+  // 初始化等級系統
+  playerLevelValue = 1;
+  playerExp = 0;
+  maxLevelThisRun = 1;
+  gameStartTime = Date.now();
+  upgradeLevels = {
+    mage: { auraRange: 0, auraDamage: 0 },
+    archer: { arrowCount: 0, arrowSpeed: 0 },
+    knight: { hitPoints: 0, deathBonus: 0 },
+    leader: { maxHp: 0, damage: 0 },
+  };
+  isChoosingUpgrade = false;
+  updateLevelUI();
+  
   resetUploadForm();
   if (animationId) cancelAnimationFrame(animationId);
   animationId = requestAnimationFrame(gameLoop);
@@ -346,15 +401,99 @@ function spawnEnemy() {
       x = Math.random() * canvas.width;
       y = canvas.height;
   }
+  
+  // 計算敵人等級（1-10級）
+  const level = calculateEnemyLevel();
+  const levelConfig = getEnemyLevelConfig(level);
+  
   enemies.push({
     x,
     y,
-    hp: ENEMY_HP,
-    maxHp: ENEMY_HP,
+    hp: levelConfig.hp,
+    maxHp: levelConfig.hp,
+    tier: level,  // 使用 tier 作為等級顯示（保持向後兼容）
+    level: level, // 新增 level 屬性
+    damage: levelConfig.damage,
+    exp: levelConfig.exp,
     hitTimer: 0,
     hpTextTimer: 0,
     dead: false,
   });
+}
+
+// ========== 怪物等級系統 ==========
+// 計算敵人等級（1-10級）- 根據玩家等級和出現機率隨機選擇
+// 配置檔案：enemy-spawn-config.js（怪物出現機率）
+// 配置檔案：upgrade-config.js（怪物屬性計算）
+function calculateEnemyLevel() {
+  if (!window.ENEMY_SPAWN_CONFIG || !window.ENEMY_SPAWN_CONFIG.spawnByPlayerLevel) {
+    // 降級處理：如果沒有配置，使用簡單的等級計算
+    if (window.UPGRADE_CONFIG && window.UPGRADE_CONFIG.enemyLevel) {
+      const config = window.UPGRADE_CONFIG.enemyLevel;
+      return Math.min(playerLevelValue, config.maxLevel);
+    }
+    return 1; // 預設等級
+  }
+  
+  const spawnConfig = window.ENEMY_SPAWN_CONFIG.spawnByPlayerLevel;
+  
+  // 根據玩家等級找到對應的生成配置
+  let currentConfig = null;
+  for (const config of spawnConfig) {
+    const [minLevel, maxLevel] = config.playerLevelRange;
+    if (playerLevelValue >= minLevel && playerLevelValue <= maxLevel) {
+      currentConfig = config;
+      break;
+    }
+  }
+  
+  // 如果找不到對應配置，使用最後一個配置（最高等級階段）
+  if (!currentConfig) {
+    currentConfig = spawnConfig[spawnConfig.length - 1];
+  }
+  
+  // 根據權重隨機選擇怪物等級
+  const enemyLevels = currentConfig.enemyLevels;
+  const totalWeight = enemyLevels.reduce((sum, e) => sum + e.weight, 0);
+  let random = Math.random() * totalWeight;
+  
+  for (const enemyLevel of enemyLevels) {
+    random -= enemyLevel.weight;
+    if (random <= 0) {
+      return enemyLevel.level;
+    }
+  }
+  
+  // 如果沒有匹配到，返回第一個等級
+  return enemyLevels[0].level;
+}
+
+// 獲取敵人等級配置（根據等級計算屬性）
+// 屬性計算公式：
+// - 血量：baseHp + (level - 1) * hpPerLevel
+// - 傷害：baseDamage + (level - 1) * damagePerLevel
+// - 經驗值：baseExp * level
+function getEnemyLevelConfig(level) {
+  if (!window.UPGRADE_CONFIG || !window.UPGRADE_CONFIG.enemyLevel) {
+    return { 
+      hp: ENEMY_HP, 
+      damage: LEADER_COLLISION_DAMAGE, 
+      exp: 10 
+    };
+  }
+  
+  const config = window.UPGRADE_CONFIG.enemyLevel;
+  
+  // 計算血量：baseHp + (level - 1) * hpPerLevel
+  const hp = config.baseHp + (level - 1) * config.hpPerLevel;
+  
+  // 計算傷害：baseDamage + (level - 1) * damagePerLevel
+  const damage = config.baseDamage + (level - 1) * config.damagePerLevel;
+  
+  // 計算經驗值：baseExp * level
+  const exp = config.baseExp * level;
+  
+  return { hp, damage, exp };
 }
 
 /**
@@ -378,11 +517,12 @@ function moveSnake(timestamp) {
   const nextX = head.x + direction.x;
   const nextY = head.y + direction.y;
 
-  // 邊界檢測：確保下一個位置在有效範圍內
-  // 有效範圍：x 從 0 到 gridWidth-1，y 從 0 到 gridHeight-1
-  // 注意：邊界檢測基於邏輯位置（網格座標），非視覺位置
-  // 由於平滑移動（lerp），視覺位置可能尚未到達邊界，但邏輯位置已超出
-  if (nextX < 0 || nextY < 0 || nextX >= gridWidth || nextY >= gridHeight) {
+  // 邊界檢測：改為完全基於視覺位置來判斷
+  // 邏輯位置可以暫時超出邊界，但只有在視覺位置真的超出邊界時才判定死亡
+  // 這樣可以確保玩家看到的和實際判定是一致的
+  // 注意：邊界檢測會在 gameLoop 中每幀檢查視覺位置，這裡只做基本檢查
+  // 如果邏輯位置超出太多（超過 1 格），可能是異常情況，直接判定死亡
+  if (nextX < -1 || nextY < -1 || nextX > gridWidth || nextY > gridHeight) {
     return triggerGameOver();
   }
 
@@ -466,16 +606,20 @@ function handleArcherAttacks(timestamp) {
     const enemy = findNearestEnemy(segment);
     if (!enemy) return;
     const segCenter = gridToPixel(segment);
-    const dist = distance(segCenter.x, segCenter.y, enemy.x, enemy.y);
-    if (dist > ATTACK_RANGE) return;
     const angle = Math.atan2(enemy.y - segCenter.y, enemy.x - segCenter.x);
-    projectiles.push({
-      x: segCenter.x,
-      y: segCenter.y,
-      vx: Math.cos(angle) * PROJECTILE_SPEED,
-      vy: Math.sin(angle) * PROJECTILE_SPEED,
-      damage: ARROW_DAMAGE,
-    });
+    const arrowCount = getArcherArrowCount();
+    const arrowSpeed = getArcherArrowSpeed();
+    // 發射多支箭矢（如果升級了）
+    for (let i = 0; i < arrowCount; i++) {
+      const spreadAngle = arrowCount > 1 ? (i - (arrowCount - 1) / 2) * 0.2 : 0;
+      projectiles.push({
+        x: segCenter.x,
+        y: segCenter.y,
+        vx: Math.cos(angle + spreadAngle) * arrowSpeed,
+        vy: Math.sin(angle + spreadAngle) * arrowSpeed,
+        damage: ARROW_DAMAGE,
+      });
+    }
     segment.lastShot = timestamp;
   });
 }
@@ -485,16 +629,18 @@ function handleMageAura() {
     if (index === 0) return;
     if (segment.role !== "mage") return;
     const segCenter = gridToPixel(segment);
+    const auraRadius = getMageAuraRadius();
+    const auraDamage = getMageAuraDamage();
     enemies.forEach((enemy) => {
       if (enemy.hp <= 0) return;
       const dist = distance(segCenter.x, segCenter.y, enemy.x, enemy.y);
-      if (dist <= AURA_RADIUS) {
-        damageEnemy(enemy, AURA_DAMAGE);
+      if (dist <= auraRadius) {
+        damageEnemy(enemy, auraDamage);
         effects.push({
           type: "aura",
           x: segCenter.x,
           y: segCenter.y,
-          radius: AURA_RADIUS,
+          radius: auraRadius,
           alpha: 0.3,
           fade: 0.015,
         });
@@ -567,14 +713,14 @@ function handleEnemyCollisions() {
 
   enemies = enemies.filter((enemy) => {
     if (rectCircleCollide(headRect, enemy)) {
-      damageLeader(LEADER_COLLISION_DAMAGE, enemy.x, enemy.y);
+      damageLeader(LEADER_COLLISION_DAMAGE, enemy.x, enemy.y, enemy);
       spawnExplosion(enemy.x, enemy.y);
-       registerKill(enemy.x, enemy.y);
+      registerKill(enemy.x, enemy.y, enemy.level || enemy.tier || 1);
       return false;
     }
     const bodyResult = handleBodyCollision(enemy, removeSet);
     if (bodyResult === "kill") {
-      registerKill(enemy.x, enemy.y);
+      registerKill(enemy.x, enemy.y, enemy.level || enemy.tier || 1);
       return false;
     }
     if (bodyResult === "survive") {
@@ -609,25 +755,91 @@ function handleBodyCollision(enemy, removeSet) {
 
   const collidedSegment = snake[collidedIndex];
   if (collidedSegment.role === "knight") {
-    removeSet.add(collidedIndex);
-    spawnExplosion(
-      collidedRect.x + collidedRect.size / 2,
-      collidedRect.y + collidedRect.size / 2
-    );
-    healLeader(LEADER_HEAL_ON_KILL, enemy.x, enemy.y);
-    return "kill";
+    // 處理騎士可被攻擊次數
+    if (!collidedSegment.hitPoints) {
+      collidedSegment.hitPoints = getKnightHitPoints();
+    }
+    collidedSegment.hitPoints -= 1;
+    
+    if (collidedSegment.hitPoints <= 0) {
+      // 騎士死亡，應用死亡加成
+      const deathBonus = getKnightDeathBonus();
+      if (deathBonus > 0) {
+        // 在騎士位置後添加新隊員
+        for (let i = 0; i < deathBonus; i++) {
+          const randomRole = SEGMENT_TYPES[Math.floor(Math.random() * SEGMENT_TYPES.length)];
+          snake.push({
+            x: collidedSegment.x,
+            y: collidedSegment.y,
+            renderX: collidedSegment.renderX,
+            renderY: collidedSegment.renderY,
+            role: randomRole,
+            lastShot: 0,
+            borderColor: getCurrentPlayerColor(),
+            facing: collidedSegment.facing || facing,
+          });
+        }
+        scoreValue.textContent = snake.length;
+        if (snake.length > maxLengthThisRun) {
+          maxLengthThisRun = snake.length;
+        }
+      }
+      
+      removeSet.add(collidedIndex);
+      spawnExplosion(
+        collidedRect.x + collidedRect.size / 2,
+        collidedRect.y + collidedRect.size / 2
+      );
+      healLeader(LEADER_HEAL_ON_KILL, enemy.x, enemy.y);
+      return "kill";
+    }
+    // 騎士還活著，但受到傷害
+    return "survive";
   }
 
+  // 尋找其他騎士來保護
   const knightIndex = findKnightIndex(removeSet);
   if (knightIndex !== -1) {
     const knight = snake[knightIndex];
-    removeSet.add(knightIndex);
-    spawnExplosion(
-      knight.x * GRID_SIZE + GRID_SIZE / 2,
-      knight.y * GRID_SIZE + GRID_SIZE / 2
-    );
-    healLeader(LEADER_HEAL_ON_KILL, enemy.x, enemy.y);
-    return "kill";
+    // 處理騎士可被攻擊次數
+    if (!knight.hitPoints) {
+      knight.hitPoints = getKnightHitPoints();
+    }
+    knight.hitPoints -= 1;
+    
+    if (knight.hitPoints <= 0) {
+      // 騎士死亡，應用死亡加成
+      const deathBonus = getKnightDeathBonus();
+      if (deathBonus > 0) {
+        for (let i = 0; i < deathBonus; i++) {
+          const randomRole = SEGMENT_TYPES[Math.floor(Math.random() * SEGMENT_TYPES.length)];
+          snake.push({
+            x: knight.x,
+            y: knight.y,
+            renderX: knight.renderX,
+            renderY: knight.renderY,
+            role: randomRole,
+            lastShot: 0,
+            borderColor: getCurrentPlayerColor(),
+            facing: knight.facing || facing,
+          });
+        }
+        scoreValue.textContent = snake.length;
+        if (snake.length > maxLengthThisRun) {
+          maxLengthThisRun = snake.length;
+        }
+      }
+      
+      removeSet.add(knightIndex);
+      spawnExplosion(
+        knight.x * GRID_SIZE + GRID_SIZE / 2,
+        knight.y * GRID_SIZE + GRID_SIZE / 2
+      );
+      healLeader(LEADER_HEAL_ON_KILL, enemy.x, enemy.y);
+      return "kill";
+    }
+    // 騎士還活著，但受到傷害
+    return "survive";
   }
 
   removeSet.add(collidedIndex);
@@ -670,7 +882,7 @@ function damageEnemy(enemy, amount) {
   });
   if (enemy.hp <= 0 && !enemy.dead) {
     enemy.dead = true;
-    registerKill(enemy.x, enemy.y);
+    registerKill(enemy.x, enemy.y, enemy.tier || 1);
     effects.push({
       type: "death",
       x: enemy.x,
@@ -683,9 +895,13 @@ function damageEnemy(enemy, amount) {
   }
 }
 
-function damageLeader(amount, sourceX, sourceY) {
+function damageLeader(amount, sourceX, sourceY, enemy = null) {
   if (isGameOver) return;
-  leaderHP = Math.max(0, leaderHP - amount);
+  // 如果正在選擇升級，鎖血，不扣血也不觸發死亡
+  if (isChoosingUpgrade) return;
+  // 如果敵人存在，使用敵人的傷害值
+  const actualDamage = enemy && enemy.damage ? enemy.damage : amount;
+  leaderHP = Math.max(0, leaderHP - actualDamage);
   const hitX = sourceX ?? snake[0].x * GRID_SIZE + GRID_SIZE / 2;
   const hitY = sourceY ?? snake[0].y * GRID_SIZE + GRID_SIZE / 2;
   effects.push({
@@ -704,7 +920,9 @@ function damageLeader(amount, sourceX, sourceY) {
 function healLeader(amount, sourceX, sourceY) {
   if (isGameOver) return;
   const prev = leaderHP;
-  leaderHP = Math.min(LEADER_MAX_HP, leaderHP + amount);
+  // 計算升級後的最大血量
+  const maxHp = getLeaderMaxHp();
+  leaderHP = Math.min(maxHp, leaderHP + amount);
   if (leaderHP > prev) {
     effects.push({
       type: "heal",
@@ -727,7 +945,7 @@ function getHealthColor(ratio) {
   return `rgb(${r},${g},${b})`;
 }
 
-function registerKill(x, y) {
+function registerKill(x, y, enemyTier = 1) {
   killCount += 1;
   killValue.textContent = killCount;
   effects.push({
@@ -738,6 +956,277 @@ function registerKill(x, y) {
     alpha: 0.6,
     fade: 0.03,
   });
+  
+  // 獲得經驗值
+  if (window.UPGRADE_CONFIG && window.UPGRADE_CONFIG.enemyLevel) {
+    const config = window.UPGRADE_CONFIG.enemyLevel;
+    const exp = config.baseExp * enemyTier; // enemyTier 就是等級
+    addExp(exp);
+  } else {
+    // 降級處理：如果沒有配置，使用預設值
+    addExp(10 * enemyTier);
+  }
+}
+
+// 添加經驗值
+function addExp(amount) {
+  if (isChoosingUpgrade) return; // 選擇升級時暫停獲得經驗值
+  playerExp += amount;
+  checkLevelUp();
+  updateLevelUI();
+}
+
+// 檢查是否升級
+function checkLevelUp() {
+  if (!window.UPGRADE_CONFIG) return;
+  const config = window.UPGRADE_CONFIG.leveling;
+  const requiredExp = Math.floor(config.baseExp * Math.pow(playerLevelValue, config.expMultiplier));
+  
+  if (playerExp >= requiredExp) {
+    playerExp -= requiredExp;
+    playerLevelValue += 1;
+    if (playerLevelValue > maxLevelThisRun) {
+      maxLevelThisRun = playerLevelValue;
+    }
+    updateLevelUI();
+    showUpgradeSelection();
+    // 遞迴檢查是否還能再升級
+    checkLevelUp();
+  }
+}
+
+// 更新等級 UI
+function updateLevelUI() {
+  if (!playerLevel || !expText || !expBarFill) return;
+  if (!window.UPGRADE_CONFIG) return;
+  
+  playerLevel.textContent = playerLevelValue;
+  const config = window.UPGRADE_CONFIG.leveling;
+  const requiredExp = Math.floor(config.baseExp * Math.pow(playerLevelValue, config.expMultiplier));
+  expText.textContent = `${playerExp} / ${requiredExp}`;
+  const expPercent = Math.min(100, (playerExp / requiredExp) * 100);
+  expBarFill.style.width = `${expPercent}%`;
+}
+
+// 顯示升級選擇
+// 生成三個升級選項（同職業只出現一個），暫停遊戲邏輯，鎖血
+function showUpgradeSelection() {
+  if (!window.UPGRADE_CONFIG || !upgradeOverlay || !upgradeOptions) return;
+  
+  // 如果血量為 0 或以下，先恢復到 1，避免在升級時死亡
+  if (leaderHP <= 0) {
+    leaderHP = 1;
+  }
+  
+  // 鎖血：選擇升級時不會受到傷害
+  isChoosingUpgrade = true;
+  upgradeOverlay.classList.remove("hidden");
+  
+  // 生成三個選項
+  const options = generateUpgradeOptions();
+  upgradeOptions.innerHTML = "";
+  
+  options.forEach((option, index) => {
+    const optionElement = createUpgradeOptionElement(option, index);
+    upgradeOptions.appendChild(optionElement);
+  });
+}
+
+// 生成升級選項（三選一，同職業只出現一個）
+function generateUpgradeOptions() {
+  if (!window.UPGRADE_CONFIG) return [];
+  
+  const config = window.UPGRADE_CONFIG.upgrades;
+  const availableOptions = [];
+  
+  // 收集所有可用的升級選項
+  Object.keys(config).forEach(role => {
+    Object.keys(config[role]).forEach(upgradeKey => {
+      const upgrade = config[role][upgradeKey];
+      const currentLevel = upgradeLevels[role][upgradeKey];
+      
+      if (currentLevel < upgrade.maxLevel) {
+        availableOptions.push({
+          role,
+          key: upgradeKey,
+          upgrade,
+          currentLevel,
+        });
+      }
+    });
+  });
+  
+  // 如果所有選項都滿級，返回滿級選項
+  if (availableOptions.length === 0) {
+    return [{
+      role: "leader",
+      key: "maxHp",
+      upgrade: { name: "最大血量", description: "隊長最大血量 +1", icon: "leader.png" },
+      currentLevel: -1, // -1 表示滿級
+      isMaxed: true,
+    }];
+  }
+  
+  // 按職業分組
+  const byRole = {};
+  availableOptions.forEach(opt => {
+    if (!byRole[opt.role]) byRole[opt.role] = [];
+    byRole[opt.role].push(opt);
+  });
+  
+  // 從每個職業中隨機選擇一個，然後再隨機選三個
+  const selectedByRole = {};
+  Object.keys(byRole).forEach(role => {
+    const roleOptions = byRole[role];
+    selectedByRole[role] = roleOptions[Math.floor(Math.random() * roleOptions.length)];
+  });
+  
+  const allSelected = Object.values(selectedByRole);
+  
+  // 如果選項少於3個，直接返回
+  if (allSelected.length <= 3) {
+    return allSelected.slice(0, 3);
+  }
+  
+  // 隨機選擇3個
+  const result = [];
+  const used = new Set();
+  while (result.length < 3 && result.length < allSelected.length) {
+    const randomIndex = Math.floor(Math.random() * allSelected.length);
+    if (!used.has(randomIndex)) {
+      used.add(randomIndex);
+      result.push(allSelected[randomIndex]);
+    }
+  }
+  
+  return result;
+}
+
+// 創建升級選項元素
+function createUpgradeOptionElement(option, index) {
+  const div = document.createElement("div");
+  div.className = `upgrade-option ${option.isMaxed ? "maxed" : ""}`;
+  
+  const icon = document.createElement("img");
+  icon.className = "upgrade-option-icon";
+  icon.src = option.upgrade.icon || "leader.png";
+  icon.alt = option.upgrade.name;
+  
+  const name = document.createElement("div");
+  name.className = "upgrade-option-name";
+  name.textContent = option.upgrade.name;
+  
+  const description = document.createElement("div");
+  description.className = "upgrade-option-description";
+  let descText = option.upgrade.description.replace("{value}", option.upgrade.increment || 1);
+  description.textContent = descText;
+  
+  const level = document.createElement("div");
+  level.className = "upgrade-option-level";
+  if (option.isMaxed) {
+    level.textContent = "已滿級（效果：隊長最大HP+1）";
+  } else {
+    level.textContent = `Lv ${option.currentLevel + 1} / ${option.upgrade.maxLevel}`;
+  }
+  
+  div.appendChild(icon);
+  div.appendChild(name);
+  div.appendChild(description);
+  div.appendChild(level);
+  
+  if (!option.isMaxed) {
+    div.addEventListener("click", () => {
+      selectUpgrade(option);
+    });
+  }
+  
+  return div;
+}
+
+// 選擇升級
+function selectUpgrade(option) {
+  if (option.isMaxed) return;
+  
+  // 應用升級
+  upgradeLevels[option.role][option.key] += 1;
+  
+  // 如果是滿級後的統一效果
+  if (option.currentLevel + 1 >= option.upgrade.maxLevel) {
+    // 檢查是否所有選項都滿級
+    const allMaxed = checkAllUpgradesMaxed();
+    if (allMaxed && window.UPGRADE_CONFIG.maxedOutBonus) {
+      const currentMaxHp = LEADER_MAX_HP + (upgradeLevels.leader.maxHp * window.UPGRADE_CONFIG.upgrades.leader.maxHp.increment);
+      leaderHP = Math.min(leaderHP + window.UPGRADE_CONFIG.maxedOutBonus.hpIncrease, currentMaxHp);
+    }
+  }
+  
+  // 關閉升級選擇
+  upgradeOverlay.classList.add("hidden");
+  isChoosingUpgrade = false;
+  
+  // 更新 UI（例如血量上限顯示）
+  updateLevelUI();
+}
+
+// 檢查所有升級是否都滿級
+function checkAllUpgradesMaxed() {
+  if (!window.UPGRADE_CONFIG) return false;
+  const config = window.UPGRADE_CONFIG.upgrades;
+  
+  for (const role of Object.keys(config)) {
+    for (const upgradeKey of Object.keys(config[role])) {
+      const upgrade = config[role][upgradeKey];
+      const currentLevel = upgradeLevels[role][upgradeKey];
+      if (currentLevel < upgrade.maxLevel) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+// 獲取升級後的數值
+function getUpgradedValue(role, key, baseValue) {
+  if (!window.UPGRADE_CONFIG) return baseValue;
+  const upgrade = window.UPGRADE_CONFIG.upgrades[role]?.[key];
+  if (!upgrade) return baseValue;
+  const level = upgradeLevels[role][key] || 0;
+  return baseValue + (level * upgrade.increment);
+}
+
+// 獲取隊長最大血量
+function getLeaderMaxHp() {
+  return getUpgradedValue("leader", "maxHp", LEADER_MAX_HP);
+}
+
+// 獲取法師光環範圍
+function getMageAuraRadius() {
+  return getUpgradedValue("mage", "auraRange", AURA_RADIUS);
+}
+
+// 獲取法師光環傷害
+function getMageAuraDamage() {
+  return getUpgradedValue("mage", "auraDamage", AURA_DAMAGE);
+}
+
+// 獲取弓箭手箭矢速度
+function getArcherArrowSpeed() {
+  return getUpgradedValue("archer", "arrowSpeed", PROJECTILE_SPEED);
+}
+
+// 獲取弓箭手箭矢數量
+function getArcherArrowCount() {
+  return getUpgradedValue("archer", "arrowCount", 1);
+}
+
+// 獲取騎士可被攻擊次數
+function getKnightHitPoints() {
+  return getUpgradedValue("knight", "hitPoints", 1);
+}
+
+// 獲取騎士死亡加成
+function getKnightDeathBonus() {
+  return getUpgradedValue("knight", "deathBonus", 0);
 }
 
 function drawHealthBar(x, y, width, height, current, max) {
@@ -775,9 +1264,14 @@ function rectCircleCollide(rect, circle) {
 
 async function triggerGameOver() {
   if (isGameOver) return;
+  // 如果正在選擇升級，不觸發遊戲結束（升級時鎖血）
+  if (isChoosingUpgrade) return;
   isGameOver = true;
   maxLengthValue.textContent = maxLengthThisRun;
   finalKillValue.textContent = killCount;
+  if (maxLevelValue) {
+    maxLevelValue.textContent = maxLevelThisRun;
+  }
   resetUploadForm();
   // 先更新排行榜，然後判斷是否進入前10名
   await updateLeaderboard();
@@ -833,6 +1327,21 @@ function draw() {
     const renderY = (segment.renderY !== undefined ? segment.renderY : segment.y) * GRID_SIZE;
     const x = renderX;
     const y = renderY;
+    
+    // 計算騎士透明度（根據剩餘 hitPoints）
+    let alpha = 1;
+    if (segment.role === "knight" && segment.hitPoints !== undefined) {
+      const maxHitPoints = getKnightHitPoints();
+      if (maxHitPoints > 0) {
+        alpha = Math.max(0.3, segment.hitPoints / maxHitPoints);
+      }
+    }
+    
+    ctx.save();
+    if (alpha < 1) {
+      ctx.globalAlpha = alpha;
+    }
+    
     if (index === 0) {
       // 隊長使用當前的 facing
       ASSETS.leader.draw(x, y, GRID_SIZE, facing);
@@ -845,14 +1354,18 @@ function draw() {
     } else {
       drawFallbackBlock("#64748b", () => {}, x, y, GRID_SIZE);
     }
-    // 繪製法師光環（在邊框之前）
+    
+    ctx.restore();
+    
+    // 繪製法師光環（在邊框之前，使用升級後的範圍）
     if (segment.role === "mage") {
+      const auraRadius = getMageAuraRadius();
       ctx.strokeStyle = "rgba(59,130,246,0.2)";
       ctx.beginPath();
-      ctx.arc(x + GRID_SIZE / 2, y + GRID_SIZE / 2, AURA_RADIUS, 0, Math.PI * 2);
+      ctx.arc(x + GRID_SIZE / 2, y + GRID_SIZE / 2, auraRadius, 0, Math.PI * 2);
       ctx.stroke();
     }
-    // 繪製隨機顏色邊框（最後繪製，確保在最上層）
+    // 繪製隨機顏色邊框（最後繪製，確保在最上層，邊框不透明）
     if (segment.borderColor) {
       ctx.strokeStyle = segment.borderColor;
       ctx.lineWidth = 3;
@@ -868,14 +1381,15 @@ function draw() {
     const y = renderY;
     if (index === 0) {
       // 隊長血條
-      if (leaderHP < LEADER_MAX_HP) {
+      const maxHp = getLeaderMaxHp();
+      if (leaderHP < maxHp) {
         drawHealthBar(
           x,
           y - 8,
           GRID_SIZE,
           4,
           leaderHP,
-          LEADER_MAX_HP
+          maxHp
         );
       }
     }
@@ -897,6 +1411,27 @@ function draw() {
       enemy.y - GRID_SIZE / 2,
       GRID_SIZE
     );
+    
+    // 繪製怪物等級（在圖片下方）
+    const enemyLevel = enemy.level || enemy.tier || 1;
+    if (enemyLevel) {
+      ctx.save();
+      const levelText = `Lv${enemyLevel}`;
+      
+      // 繪製等級文字（白色，在圖片下方）
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 11px 'Noto Sans TC', sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText(
+        levelText,
+        enemy.x,
+        enemy.y + GRID_SIZE / 2 + 2
+      );
+      ctx.restore();
+    }
+    
+    // 血條：只在受傷時顯示
     if ((enemy.maxHp || ENEMY_HP) > 0 && enemy.hp < (enemy.maxHp || ENEMY_HP)) {
       drawHealthBar(
         enemy.x - GRID_SIZE / 2,
@@ -907,9 +1442,12 @@ function draw() {
         enemy.maxHp || ENEMY_HP
       );
     }
+    
+    // 血量文字：只在扣血時顯示（hpTextTimer > 0）
     if (enemy.hpTextTimer > 0) {
+      ctx.save();
       ctx.fillStyle = "#fbbf24";
-      ctx.font = "16px 'Noto Sans TC', sans-serif";
+      ctx.font = "14px 'Noto Sans TC', sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "bottom";
       ctx.fillText(
@@ -917,6 +1455,7 @@ function draw() {
         enemy.x,
         enemy.y - GRID_SIZE * 0.6
       );
+      ctx.restore();
     }
   });
 
@@ -989,6 +1528,14 @@ function gameLoop(timestamp) {
     cancelAnimationFrame(animationId);
     return;
   }
+  
+  // 如果正在選擇升級，暫停遊戲邏輯，但繼續繪製
+  if (isChoosingUpgrade) {
+    draw();
+    animationId = requestAnimationFrame(gameLoop);
+    return;
+  }
+  
   if (!lastMoveTime) lastMoveTime = timestamp;
   if (!lastEnemySpawn) lastEnemySpawn = timestamp;
 
@@ -1030,6 +1577,39 @@ function gameLoop(timestamp) {
       segment.renderY = currentRenderY + diffY * lerpSpeed;
     }
   });
+  
+  // ========== 邊界檢測 ==========
+  // 基於視覺位置來判斷（確保玩家看到的和實際判定一致）
+  // 邏輯位置可以暫時超出邊界，但只有在視覺位置真的超出邊界時才判定死亡
+  // 避免因平滑移動（lerp）延遲導致的誤判
+  // 只在檢查隊長（頭部）的視覺位置
+  if (snake.length > 0 && !isGameOver) {
+    const head = snake[0];
+    const renderX = head.renderX !== undefined ? head.renderX : head.x;
+    const renderY = head.renderY !== undefined ? head.renderY : head.y;
+    
+    // 計算視覺位置對應的像素座標
+    const pixelX = renderX * GRID_SIZE;
+    const pixelY = renderY * GRID_SIZE;
+    
+    // 計算邊界像素座標（對應實際繪製的邊界線）
+    const boundaryLeft = 0;
+    const boundaryTop = 0;
+    const boundaryRight = (gridWidth - 1) * GRID_SIZE + GRID_SIZE;
+    const boundaryBottom = (gridHeight - 1) * GRID_SIZE + GRID_SIZE;
+    
+    // 檢查視覺位置是否超出邊界
+    // 使用角色中心點來判斷，所以需要考慮角色大小（GRID_SIZE）
+    const halfSize = GRID_SIZE / 2;
+    if (pixelX + halfSize < boundaryLeft || 
+        pixelY + halfSize < boundaryTop || 
+        pixelX + halfSize > boundaryRight || 
+        pixelY + halfSize > boundaryBottom) {
+      // 視覺位置真的超出邊界，判定死亡
+      triggerGameOver();
+      return; // 立即返回，避免繼續執行
+    }
+  }
 
   if (timestamp - lastEnemySpawn >= ENEMY_SPAWN_RATE) {
     spawnEnemy();

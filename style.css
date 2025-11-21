@@ -2,8 +2,15 @@
   box-sizing: border-box;
 }
 
-body {
+html, body {
   margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+body {
   background: #0c0f1b;
   font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
   color: #fdfdfd;
@@ -11,6 +18,7 @@ body {
   flex-direction: column;
   align-items: center;
   min-height: 100vh;
+  position: relative;
 }
 
 .ui {
@@ -31,14 +39,65 @@ body {
   flex-wrap: wrap;
 }
 
+.level-system {
+  margin-top: 12px;
+  width: 100%;
+  max-width: 800px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.level-info {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #4ade80;
+}
+
+.exp-bar-container {
+  width: 100%;
+  max-width: 600px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.exp-bar-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  color: #cbd5e1;
+}
+
+.exp-bar {
+  width: 100%;
+  height: 24px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 2px solid rgba(74, 222, 128, 0.3);
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+}
+
+.exp-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4ade80, #22c55e);
+  width: 0%;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+}
+
 .game-wrapper {
   display: flex;
   gap: 24px;
   width: fit-content;
   max-width: 95vw;
   margin-top: 20px;
+  margin-bottom: 20px;
   justify-content: center;
   align-items: flex-start;
+  flex-shrink: 0;
 }
 
 canvas {
@@ -503,6 +562,90 @@ button:active {
   transition: width 0.2s ease;
 }
 
+.upgrade-content {
+  max-width: 900px;
+  width: 90vw;
+}
+
+.upgrade-options {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
+.upgrade-option {
+  flex: 1;
+  min-width: 250px;
+  max-width: 280px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 2px solid rgba(74, 222, 128, 0.3);
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.upgrade-option:hover {
+  border-color: #4ade80;
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(74, 222, 128, 0.3);
+  background: rgba(15, 23, 42, 1);
+}
+
+.upgrade-option:active {
+  transform: translateY(-2px);
+}
+
+.upgrade-option.maxed {
+  opacity: 0.6;
+  cursor: not-allowed;
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+.upgrade-option.maxed:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.upgrade-option-icon {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.upgrade-option-name {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #4ade80;
+  text-align: center;
+}
+
+.upgrade-option-description {
+  font-size: 0.9rem;
+  color: #cbd5e1;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.upgrade-option-level {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+.upgrade-option.maxed .upgrade-option-level {
+  color: #fbbf24;
+}
+
 @media (max-width: 1024px) {
   .game-wrapper {
     flex-direction: column;
@@ -521,6 +664,11 @@ button:active {
     width: 100%;
     max-width: 600px;
     overflow-y: visible;
+  }
+
+  .upgrade-option {
+    min-width: 200px;
+    max-width: 240px;
   }
 }
 

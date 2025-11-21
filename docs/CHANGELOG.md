@@ -1,6 +1,95 @@
 # 更新紀錄
 
-## 2025-11-21（最新）
+## 2025-12-XX（最新）
+
+### 等級與經驗值系統
+- **新增功能**：玩家等級和經驗值系統
+- **實作細節**：
+  - 玩家有等級和經驗值，經驗值滿了會升級
+  - 等級和經驗值條顯示在遊戲視窗下方
+  - 經驗值來源：擊殺敵人獲得經驗值，不同等級的敵人提供不同經驗值
+  - 升級公式：`所需經驗值 = baseExp * (等級 ^ expMultiplier)`
+    - `baseExp = 80`：基礎經驗值需求
+    - `expMultiplier = 1.3`：經驗值成長倍率
+  - 升級時會彈出三選一升級選項供玩家選擇
+  - 選擇升級時會鎖血，避免在選擇過程中死亡
+- **配置檔案**：`upgrade-config.js`
+
+### 升級三選一系統
+- **新增功能**：升級時彈出三選一升級選項
+- **實作細節**：
+  - 每次升級時隨機生成 3 個升級選項
+  - 同職業只會出現一個選項，避免重複
+  - 選項顯示名稱、效果、當前 Lv/最大 Lv
+  - 選項滿級後，效果統一變成隊長最大HP+1
+  - 升級選擇時暫停遊戲邏輯，但繼續繪製
+- **升級選項**：
+  - **法師**：施法範圍+1（最大Lv8）、施法傷害+1（最大Lv5）
+  - **弓箭手**：弓箭數量+1（最大Lv3）、射擊速度+1（最大Lv10）
+  - **騎士**：可被攻擊次數+1（最大Lv10）、死亡後增加隊伍長度+1（最大Lv3）
+  - **隊長**：血量+5（最大Lv10）、傷害+1（最大Lv5）
+
+### 怪物等級系統重構
+- **調整功能**：將怪物系統從強度等級（tier）改為簡單的等級系統（1-10級）
+- **實作細節**：
+  - 怪物等級範圍：1-10 級
+  - 屬性計算公式：
+    - 血量：`baseHp + (level - 1) * hpPerLevel`
+    - 傷害：`baseDamage + (level - 1) * damagePerLevel`
+    - 經驗值：`baseExp * level`
+  - 等級顯示：怪物圖片下方顯示白色文字 "Lv1"、"Lv2" 等
+  - 移除怪物名稱（普通、精英等），只顯示等級
+- **配置檔案**：`upgrade-config.js` 中的 `enemyLevel` 配置
+
+### 怪物生成系統
+- **新增功能**：根據玩家等級決定怪物出現機率
+- **實作細節**：
+  - 一開始只出現等級 1 的怪物（最弱）
+  - 隨著玩家等級提升，逐漸出現更強的怪物
+  - 每個玩家等級階段定義可出現的怪物等級及其出現機率（權重）
+  - 使用權重系統隨機選擇怪物等級
+- **配置檔案**：`enemy-spawn-config.js`（獨立配置文件）
+- **詳細說明**：參考 `docs/ENEMY-SPAWN-README.md`
+
+### 職業升級效果整合
+- **調整功能**：各職業技能會根據升級等級動態調整
+- **實作細節**：
+  - **弓箭手**：
+    - 射擊速度可升級（從射程改為速度）
+    - 弓箭數量可升級（每次攻擊可發射多支箭矢）
+  - **法師**：
+    - 光環範圍可升級
+    - 光環傷害可升級
+  - **騎士**：
+    - 可被攻擊次數可升級（越接近消失越透明，但邊框不透明）
+    - 死亡後增加隊伍長度可升級
+  - **隊長**：
+    - 最大血量可升級
+    - 撞擊傷害可升級（預留功能）
+
+### 邊界檢測優化
+- **調整功能**：邊界檢測改為完全基於視覺位置來判斷
+- **實作細節**：
+  - 邏輯位置可以暫時超出邊界，但只有在視覺位置真的超出邊界時才判定死亡
+  - 使用角色中心點來判斷，考慮角色大小（`GRID_SIZE / 2`）
+  - 在 `gameLoop` 中，在更新視覺位置（lerp）後檢查邊界
+  - 避免因平滑移動（lerp）延遲導致的誤判
+- **效果**：確保玩家看到的和實際判定完全一致，不會再出現視覺上還沒碰到邊界就判定死亡的情況
+
+### UI 優化
+- **新增功能**：等級和經驗值條顯示在遊戲視窗下方
+- **調整功能**：Game Over 畫面新增最高等級顯示
+- **調整功能**：怪物血量文字只在扣血時短暫顯示
+- **調整功能**：怪物等級顯示在圖片下方，格式為 "Lv1"、"Lv2" 等
+
+### 頁面滾動優化
+- **調整功能**：修復移動時整個網頁都在動的問題
+- **實作細節**：
+  - 為 `html` 和 `body` 添加 `overflow-x: hidden` 和 `overflow-y: auto`
+  - 為 `.game-wrapper` 添加 `flex-shrink: 0` 和 `margin-bottom`
+  - 防止布局跳動
+
+## 2025-11-21
 
 ### 排行榜系統優化
 - **調整功能**：排行榜分為「全球排行榜」和「今日排行榜」，上下排列顯示
@@ -170,13 +259,20 @@
   - 暗色系主題，配合遊戲風格
   - Flexbox 布局，確保畫布和側邊面板正確排列
   - 排行榜和快速指引面板固定寬度，畫布固定 800x600
-- **`script.js`**：遊戲核心邏輯（約 1350 行）
+- **`script.js`**：遊戲核心邏輯（約 1900 行）
   - 所有遊戲邏輯、UI 管理、Firebase 互動都在此檔案
 
 ### 配置檔案
 - **`guide-config.js`**：快速指引配置，可獨立修改
   - 結構：`title`、`intro`、`items[]`、`tip`
   - 企劃人員可直接修改此檔案，無需觸碰核心程式碼
+- **`upgrade-config.js`**：升級系統配置，可獨立修改
+  - 結構：`leveling`、`enemyLevel`、`upgrades`、`maxedOutBonus`
+  - 包含等級經驗值、怪物屬性、升級選項等配置
+  - 詳細說明請參考 `docs/UPGRADE-SYSTEM-README.md`
+- **`enemy-spawn-config.js`**：怪物生成配置，可獨立修改
+  - 結構：`spawnByPlayerLevel[]`（根據玩家等級定義怪物出現機率）
+  - 詳細說明請參考 `docs/ENEMY-SPAWN-README.md`
 - **`docs/GDD.md`**：遊戲設計文件
   - 詳細的遊戲規則、參數、機制說明
 - **`docs/CHANGELOG.md`**：本文件
@@ -209,6 +305,20 @@
 - `maxLengthThisRun`：本局最長隊伍長度
 - `leaderHP`：隊長當前血量
 
+#### 等級系統
+- `playerLevelValue`：玩家當前等級
+- `playerExp`：玩家當前經驗值
+- `maxLevelThisRun`：本局最高等級
+- `gameStartTime`：遊戲開始時間（用於計算怪物等級）
+
+#### 升級系統
+- `upgradeLevels`：物件，追蹤各升級的等級
+  - `mage.auraRange`、`mage.auraDamage`
+  - `archer.arrowCount`、`archer.arrowSpeed`
+  - `knight.hitPoints`、`knight.deathBonus`
+  - `leader.maxHp`、`leader.damage`
+- `isChoosingUpgrade`：是否正在選擇升級（選擇時鎖血）
+
 #### Firebase 相關
 - 透過 `window` 物件暴露的全局變數：
   - `window.firebaseDb`：Firestore 資料庫實例
@@ -219,6 +329,8 @@
 
 #### UI 元素引用
 - 所有 DOM 元素在檔案開頭統一引用
+- 等級系統：`playerLevel`、`expText`、`expBarFill`、`maxLevelValue`
+- 升級選擇：`upgradeOverlay`、`upgradeOptions`
 - 排行榜：`leaderboardListAll`（全球）、`leaderboardListToday`（今日）
 - 開始畫面：`startOverlay`、`startPlayerNameInput`、`startGameBtn`、`startLoader`、`startForm`
 - Game Over：`overlay`、`playerNameInput`、`uploadScoreBtn`、`restartBtn`
@@ -229,6 +341,7 @@
 - `gameLoop(timestamp)`：主遊戲循環，使用 `requestAnimationFrame`
   - 處理移動時機（`GAME_SPEED` 間隔）
   - 執行平滑插值計算（每幀更新視覺位置）
+  - 邊界檢測（基於視覺位置）
   - 更新敵人、投射物、特效
   - 處理碰撞檢測
   - 繪製畫面
@@ -259,14 +372,21 @@
 #### 職業技能
 - `handleArcherAttacks(timestamp)`：處理弓箭手攻擊
   - 檢查冷卻時間
-  - 尋找最近敵人
-  - 發射箭矢
+  - 尋找最近敵人（無距離限制）
+  - 發射箭矢（數量可升級，速度可升級）
 - `handleMageAura()`：處理法師光環傷害
-  - 對範圍內敵人造成持續傷害
+  - 對範圍內敵人造成持續傷害（範圍和傷害可升級）
 - `damageEnemy(enemy, amount)`：對敵人造成傷害
   - 更新敵人血量
   - 顯示傷害數字
-  - 處理擊殺
+  - 處理擊殺（給予經驗值）
+- `getArcherArrowSpeed()`：獲取弓箭手箭矢速度（考慮升級）
+- `getArcherArrowCount()`：獲取弓箭手箭矢數量（考慮升級）
+- `getMageAuraRadius()`：獲取法師光環範圍（考慮升級）
+- `getMageAuraDamage()`：獲取法師光環傷害（考慮升級）
+- `getKnightHitPoints()`：獲取騎士可被攻擊次數（考慮升級）
+- `getKnightDeathBonus()`：獲取騎士死亡加成（考慮升級）
+- `getLeaderMaxHp()`：獲取隊長最大血量（考慮升級）
 
 #### UI 管理
 - `renderGuidePanel()`：渲染遊戲中的快速指引面板
@@ -302,16 +422,43 @@
 - `getCurrentPlayerColor()`：獲取當前玩家顏色
   - 如果沒有分配，自動分配
 
+#### 等級與升級系統
+- `addExp(amount)`：添加經驗值
+  - 更新經驗值
+  - 檢查是否升級
+  - 更新 UI
+- `checkLevelUp()`：檢查是否升級
+  - 計算所需經驗值
+  - 如果經驗值足夠，升級並顯示升級選擇
+- `updateLevelUI()`：更新等級 UI
+  - 更新等級文字
+  - 更新經驗值文字和進度條
+- `showUpgradeSelection()`：顯示升級選擇
+  - 生成三個升級選項
+  - 暫停遊戲邏輯
+  - 鎖血（避免在選擇過程中死亡）
+- `selectUpgrade(option)`：選擇升級
+  - 應用升級效果
+  - 關閉升級選擇
+  - 恢復遊戲邏輯
+- `generateUpgradeOptions()`：生成升級選項（三選一，同職業只出現一個）
+- `getUpgradedValue(role, key, baseValue)`：獲取升級後的數值
+
+#### 怪物系統
+- `calculateEnemyLevel()`：計算敵人等級（根據玩家等級和出現機率）
+- `getEnemyLevelConfig(level)`：獲取敵人等級配置（根據等級計算屬性）
+- `spawnEnemy()`：生成敵人（根據配置隨機選擇等級）
+
 #### 其他工具函數
 - `startGame()`：開始新遊戲
   - 初始化所有遊戲狀態
   - 分配玩家顏色
-  - 重置計分
+  - 重置計分和等級
   - 啟動遊戲循環
 - `triggerGameOver()`：觸發遊戲結束
   - 更新排行榜
   - 檢查是否進入前 10 名
-  - 顯示 Game Over 覆蓋層
+  - 顯示 Game Over 覆蓋層（包含最高等級）
 - `drawHealthBar(x, y, width, height, current, max)`：繪製血條
 - `drawFallbackBlock(color, drawFn, x, y, size)`：繪製降級圖形
 - `escapeHtml(text)`：轉義 HTML 特殊字符

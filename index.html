@@ -11,6 +11,7 @@
     <script src="guide-config.js"></script>
     <script src="upgrade-config.js"></script>
     <script src="enemy-spawn-config.js"></script>
+    <script src="hero-quotes-config.js"></script>
     <script>
       // 遊戲常數定義
       const GRID_SIZE = 40; // 網格大小 (像素)
@@ -81,31 +82,33 @@
 
       <!-- HUD 層 (懸浮介面) -->
       <div class="hud-layer">
-        <!-- 左上：小地圖 -->
-        <div class="minimap-container">
-            <canvas id="minimap" width="150" height="150"></canvas>
-        </div>
+        <!-- 頂部 HUD 區域（獨立區域，不遮擋遊戲） -->
+        <div class="hud-top-bar">
+          <!-- 左上：小地圖 -->
+          <div class="minimap-container">
+              <canvas id="minimap" width="120" height="120"></canvas>
+          </div>
 
-        <!-- 小地圖右側：遊戲資訊 -->
-        <div class="top-stats">
-            <div class="score-row">
-                <div class="score-pill">隊伍: <span id="scoreValue">1</span></div>
-                <div class="score-pill">擊殺: <span id="killValue">0</span></div>
-            </div>
-            <div class="level-row">
-                <div class="level-badge">Lv.<span id="playerLevel">1</span></div>
-                <div class="hud-exp-bar">
-                    <div id="expBarFill" class="hud-exp-fill"></div>
-                    <span id="expText" class="hud-exp-text">0 / 100</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- 右上：功能按鈕 -->
-        <div class="top-controls">
-            <button id="pauseBtn" class="control-btn" title="暫停">⏸</button>
-            <button id="leaderboardBtn" class="control-btn" title="排行榜">📊</button>
-            <button id="guideBtn" class="control-btn" title="遊戲說明">❓</button>
+          <!-- 小地圖右側：遊戲資訊 -->
+          <div class="top-stats">
+              <div class="score-row">
+                  <div class="score-pill">隊伍: <span id="scoreValue">1</span></div>
+                  <div class="score-pill">擊殺: <span id="killValue">0</span></div>
+              </div>
+              <div class="level-row">
+                  <div class="level-badge">Lv.<span id="playerLevel">1</span></div>
+                  <div class="hud-exp-bar">
+                      <div id="expBarFill" class="hud-exp-fill"></div>
+                      <span id="expText" class="hud-exp-text">0 / 100</span>
+                  </div>
+              </div>
+              <!-- 功能按鈕（放在經驗值下方） -->
+              <div class="top-controls">
+                  <button id="pauseBtn" class="control-btn" title="暫停">⏸</button>
+                  <button id="leaderboardBtn" class="control-btn" title="排行榜">📊</button>
+                  <button id="guideBtn" class="control-btn" title="遊戲說明">❓</button>
+              </div>
+          </div>
         </div>
         
         <!-- 倒數計時顯示 (全螢幕覆蓋) -->
@@ -127,6 +130,11 @@
             <p id="loaderText">勇者準備中... 0%</p>
             <div class="loader-bar">
               <div id="loaderBar"></div>
+            </div>
+            <!-- 勇者今日名言（100% 時顯示） -->
+            <div id="heroQuote" class="hero-quote hidden">
+              <p class="quote-title">勇者今日名言</p>
+              <p id="quoteText" class="quote-text"></p>
             </div>
           </div>
         </div>

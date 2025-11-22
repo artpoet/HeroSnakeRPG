@@ -37,7 +37,8 @@ body {
 canvas#gameCanvas {
   display: block;
   width: 100%;
-  height: 100%;
+  height: calc(100% - 136px); /* 減去 HUD 區域高度 */
+  margin-top: 136px; /* HUD 區域高度 */
   background: #111827;
 }
 
@@ -50,10 +51,24 @@ canvas#gameCanvas {
   height: 100%;
   pointer-events: none; /* 讓點擊穿透到 Canvas */
   z-index: 10;
-  padding: 10px;
+}
+
+/* 頂部 HUD 區域（獨立區域，不遮擋遊戲） */
+.hud-top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 136px; /* 120px 地圖 + 16px padding */
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(4px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  align-items: flex-start;
+  padding: 8px 12px;
+  gap: 12px;
+  pointer-events: auto; /* 頂部區域可點擊 */
+  z-index: 20;
 }
 
 /* 讓 HUD 內的按鈕和互動元素恢復點擊 */
@@ -63,15 +78,13 @@ canvas#gameCanvas {
 
 /* 小地圖容器 */
 .minimap-container {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  width: 150px;
-  height: 150px;
+  width: 120px;
+  height: 120px;
   background: rgba(0, 0, 0, 0.6);
   border: 2px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 canvas#minimap {
@@ -82,14 +95,12 @@ canvas#minimap {
 
 /* 小地圖右側：遊戲資訊 */
 .top-stats {
-  position: absolute;
-  top: 16px;
-  left: 182px; /* 小地圖寬度 150px + 間距 16px + 小地圖右邊距 16px */
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  pointer-events: none; /* 這裡不需要點擊 */
-  max-width: calc(100vw - 250px); /* 避免與右上角按鈕重疊（預留 250px 給按鈕） */
+  gap: 6px;
+  pointer-events: none; /* 資訊區域不攔截點擊 */
+  min-width: 0; /* 允許縮小 */
 }
 
 .score-row {
@@ -116,7 +127,7 @@ canvas#minimap {
   padding: 4px 8px;
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  min-width: 200px;
+  min-width: 180px;
 }
 
 .level-badge {
@@ -153,25 +164,22 @@ canvas#minimap {
   white-space: nowrap;
 }
 
-/* 右上功能按鈕 */
+/* 功能按鈕（放在經驗值下方） */
 .top-controls {
-  position: absolute;
-  top: 16px;
-  right: 16px;
   display: flex;
-  gap: 10px;
+  gap: 8px;
   pointer-events: auto;
-  z-index: 100; /* 確保在資訊上方 */
+  margin-top: 4px;
 }
 
 .control-btn {
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.2);
   background: rgba(15, 23, 42, 0.9);
   color: #f1f5f9;
-  font-size: 1.2rem;
+  font-size: 1rem;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -224,6 +232,68 @@ canvas#minimap {
   justify-content: center;
   align-items: center;
   min-height: 100px;
+}
+
+.loader-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+#loaderText.hidden {
+  display: none;
+}
+
+.loader-bar.hidden {
+  display: none;
+}
+
+/* 勇者今日名言 */
+.hero-quote {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  animation: fadeIn 0.5s ease-in;
+}
+
+.hero-quote.hidden {
+  display: none;
+}
+
+.quote-title {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #4ade80;
+  text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+  margin: 0;
+}
+
+.quote-text {
+  font-size: 1rem;
+  color: #e2e8f0;
+  text-align: left;
+  line-height: 1.6;
+  margin: 0;
+  padding: 12px 16px;
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 8px;
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  max-width: 100%;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .home-menu {

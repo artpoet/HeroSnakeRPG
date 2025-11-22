@@ -163,20 +163,53 @@ function createAsset(key, def) {
   return asset;
 }
 
+// 勇者幹話陣列（從 hero-quotes-config.js 載入）
+const heroQuotes = window.HERO_QUOTES || [
+  "勇者準備就緒！", // 預設值（如果配置文件未載入）
+];
+
+let quoteShown = false; // 標記名言是否已顯示
+
+function getRandomQuote() {
+  if (!heroQuotes || heroQuotes.length === 0) {
+    return "勇者準備就緒！";
+  }
+  return heroQuotes[Math.floor(Math.random() * heroQuotes.length)];
+}
+
 function updateLoader() {
   const percent = Math.floor((assetsLoaded / TOTAL_ASSETS) * 100);
   const loaderBar = document.getElementById("loaderBar");
   const loaderText = document.getElementById("loaderText");
+  const heroQuote = document.getElementById("heroQuote");
+  const quoteText = document.getElementById("quoteText");
+  const loaderBarContainer = loaderBar?.parentElement;
+  
   if (loaderBar) loaderBar.style.width = `${percent}%`;
-  if (loaderText) loaderText.innerText = `勇者準備中... ${percent}%`;
-
-  // 所有資產載入完成後，隱藏載入畫面並顯示主選單
-  if (assetsLoaded >= TOTAL_ASSETS) {
-    const homeLoader = document.getElementById("homeLoader");
-    const homeMenu = document.getElementById("homeMenu");
-    if (homeLoader) {
-      homeLoader.classList.add("hidden");
+  
+  // 100% 時切換到名言顯示（只顯示一次）
+  if (percent >= 100 && !quoteShown) {
+    if (loaderText) loaderText.classList.add("hidden");
+    if (loaderBarContainer) loaderBarContainer.classList.add("hidden");
+    if (heroQuote) {
+      heroQuote.classList.remove("hidden");
+      if (quoteText) {
+        quoteText.textContent = getRandomQuote();
+      }
     }
+    quoteShown = true;
+  } else if (percent < 100) {
+    if (loaderText) {
+      loaderText.innerText = `勇者準備中... ${percent}%`;
+      loaderText.classList.remove("hidden");
+    }
+    if (loaderBarContainer) loaderBarContainer.classList.remove("hidden");
+    if (heroQuote) heroQuote.classList.add("hidden");
+  }
+
+  // 所有資產載入完成後，顯示主選單（但保持載入畫面顯示名言）
+  if (assetsLoaded >= TOTAL_ASSETS) {
+    const homeMenu = document.getElementById("homeMenu");
     if (homeMenu) {
       homeMenu.classList.remove("hidden");
     }
@@ -206,8 +239,9 @@ for (const [key, def] of Object.entries(assetDefinitions)) {
 // ========== 視窗大小與 Camera ==========
 
 function resizeCanvas() {
+  const HUD_HEIGHT = 136; // HUD 區域高度（120px 地圖 + 16px padding）
   canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  canvas.height = window.innerHeight - HUD_HEIGHT; // 減去 HUD 區域高度
   
   camera.width = canvas.width;
   camera.height = canvas.height;
@@ -1338,7 +1372,7 @@ function draw() {
   });
   effects = effects.filter(e => e.life > 0);
   
-  // 8. 繪製觸控軌跡 (Screen Coordinates - 不受 Camera 影響)
+  // 8. 繪製滑動軌跡（觸控和滑鼠共用）(Screen Coordinates - 不受 Camera 影響)
   drawTouchTrails();
   
   ctx.restore();
@@ -1422,58 +1456,109 @@ function drawMinimap() {
 
 // ========== 觸控與輸入系統 ==========
 
-// 觸控軌跡
+// 獲取 Canvas 相對座標的輔助函數（觸控和滑鼠共用）
+function getCanvasCoordinatesFromTouch(touch) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+        x: touch.clientX - rect.left,
+        y: touch.clientY - rect.top
+    };
+}
+
+// ========== 觸控事件 ==========
 canvas.addEventListener("touchmove", (e) => {
     e.preventDefault(); // 防止捲動
     const touch = e.touches[0];
-    touchTrails.push({
-        x: touch.clientX,
-        y: touch.clientY,
-        life: 15 // 持續幀數
-    });
-    
-    // 滑動控制邏輯
-    handleTouchControl(touch);
+    const coords = getCanvasCoordinatesFromTouch(touch);
+    addTrailPoint(coords.x, coords.y);
+    handleSwipeControl(coords.x, coords.y);
 }, { passive: false });
 
 canvas.addEventListener("touchstart", (e) => {
     const touch = e.touches[0];
-    touchStartX = touch.clientX;
-    touchStartY = touch.clientY;
-    touchEndX = touch.clientX;
-    touchEndY = touch.clientY;
+    const coords = getCanvasCoordinatesFromTouch(touch);
+    touchStartX = coords.x;
+    touchStartY = coords.y;
+    touchEndX = coords.x;
+    touchEndY = coords.y;
     touchEndTime = 0;
 }, { passive: false });
 
 canvas.addEventListener("touchend", (e) => {
     if (e.changedTouches && e.changedTouches.length > 0) {
         const touch = e.changedTouches[0];
-        touchEndX = touch.clientX;
-        touchEndY = touch.clientY;
+        const coords = getCanvasCoordinatesFromTouch(touch);
+        touchEndX = coords.x;
+        touchEndY = coords.y;
         touchEndTime = Date.now();
-        
-        // 記錄結束點用於繪製箭頭
-        if (touchTrails.length > 0) {
-            const lastPoint = touchTrails[touchTrails.length - 1];
-            touchTrails.push({
-                x: touchEndX,
-                y: touchEndY,
-                life: 15,
-                isEnd: true // 標記為結束點
-            });
-        }
+        addTrailPoint(touchEndX, touchEndY, true);
     }
 }, { passive: false });
+
+// 獲取 Canvas 相對座標的輔助函數
+function getCanvasCoordinates(e) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+    };
+}
+
+// ========== 滑鼠事件（與觸控相同的滑動功能）==========
+canvas.addEventListener("mousedown", (e) => {
+    if (isPaused || isChoosingUpgrade) return;
+    isMouseDown = true;
+    const coords = getCanvasCoordinates(e);
+    touchStartX = coords.x;
+    touchStartY = coords.y;
+    touchEndX = coords.x;
+    touchEndY = coords.y;
+    touchEndTime = 0;
+    e.preventDefault(); // 防止預設行為
+});
+
+canvas.addEventListener("mousemove", (e) => {
+    if (!isMouseDown || isPaused || isChoosingUpgrade) return;
+    const coords = getCanvasCoordinates(e);
+    addTrailPoint(coords.x, coords.y);
+    handleSwipeControl(coords.x, coords.y);
+    e.preventDefault(); // 防止預設行為
+});
+
+canvas.addEventListener("mouseup", (e) => {
+    if (!isMouseDown) return;
+    isMouseDown = false;
+    const coords = getCanvasCoordinates(e);
+    touchEndX = coords.x;
+    touchEndY = coords.y;
+    touchEndTime = Date.now();
+    addTrailPoint(touchEndX, touchEndY, true);
+    e.preventDefault(); // 防止預設行為
+});
+
+// 處理滑鼠離開 Canvas 的情況
+canvas.addEventListener("mouseleave", (e) => {
+    if (isMouseDown) {
+        isMouseDown = false;
+        const coords = getCanvasCoordinates(e);
+        touchEndX = coords.x;
+        touchEndY = coords.y;
+        touchEndTime = Date.now();
+        addTrailPoint(touchEndX, touchEndY, true);
+    }
+});
 
 let touchStartX = 0;
 let touchStartY = 0;
 let touchEndX = 0;
 let touchEndY = 0;
 let touchEndTime = 0;
+let isMouseDown = false; // 滑鼠按下狀態
 
-function handleTouchControl(touch) {
-    const dx = touch.clientX - touchStartX;
-    const dy = touch.clientY - touchStartY;
+// 通用的滑動控制處理函數（觸控和滑鼠共用）
+function handleSwipeControl(clientX, clientY) {
+    const dx = clientX - touchStartX;
+    const dy = clientY - touchStartY;
     
     // 簡單閾值判斷
     if (Math.abs(dx) > 30 || Math.abs(dy) > 30) {
@@ -1487,11 +1572,22 @@ function handleTouchControl(touch) {
             if (newDir.y !== -direction.y) nextDirection = newDir;
         }
         // 重置起點以支援連續滑動
-        touchStartX = touch.clientX;
-        touchStartY = touch.clientY;
+        touchStartX = clientX;
+        touchStartY = clientY;
     }
 }
 
+// 添加軌跡點（觸控和滑鼠共用）
+function addTrailPoint(x, y, isEnd = false) {
+    touchTrails.push({
+        x: x,
+        y: y,
+        life: 15,
+        isEnd: isEnd
+    });
+}
+
+// 繪製滑動軌跡（觸控和滑鼠共用）
 function drawTouchTrails() {
     ctx.save();
     ctx.lineCap = "round";
@@ -1530,8 +1626,8 @@ function drawTouchTrails() {
         
         if (dist > 5) { // 確保有足夠的距離來繪製箭頭
             const angle = Math.atan2(dy, dx);
-            const arrowLength = 20;
-            const arrowWidth = 8;
+            const arrowLength = 28; // 增加箭頭長度（從 20 增加到 28）
+            const arrowWidth = 12; // 增加箭頭寬度（從 8 增加到 12）
             
             // 箭頭尖端位置
             const arrowTipX = lastPoint.x;
@@ -1543,14 +1639,17 @@ function drawTouchTrails() {
             const arrowRightX = arrowTipX - arrowLength * Math.cos(angle) + arrowWidth * Math.cos(angle - Math.PI / 2);
             const arrowRightY = arrowTipY - arrowLength * Math.sin(angle) + arrowWidth * Math.sin(angle - Math.PI / 2);
             
-            // 繪製箭頭
-            ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+            // 繪製箭頭（增加不透明度和邊框讓它更明顯）
+            ctx.fillStyle = "rgba(255, 255, 255, 0.9)"; // 增加不透明度（從 0.7 到 0.9）
+            ctx.strokeStyle = "rgba(74, 222, 128, 0.8)"; // 添加綠色邊框
+            ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(arrowTipX, arrowTipY);
             ctx.lineTo(arrowLeftX, arrowLeftY);
             ctx.lineTo(arrowRightX, arrowRightY);
             ctx.closePath();
             ctx.fill();
+            ctx.stroke(); // 繪製邊框
         }
     }
     
@@ -1960,3 +2059,4 @@ function updateLevelUI() {
     expBarFill.style.width = `${pct}%`;
     expText.innerText = `${playerExp}/${Math.floor(req)}`;
 }
+

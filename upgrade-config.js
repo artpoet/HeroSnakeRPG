@@ -4,10 +4,10 @@
 window.UPGRADE_CONFIG = {
   // ========== 等級與經驗值系統 ==========
   // 升級所需經驗值計算公式：baseExp * (level ^ expMultiplier)
-  // 例如：baseExp=80, expMultiplier=1.3, level=2 時需要 80 * (2^1.3) = 200 經驗值
+  // 例如：baseExp=40, expMultiplier=1.15, level=2 時需要 40 * (2^1.15) = 89 經驗值
   leveling: {
-    baseExp: 80,         // 基礎經驗值需求（降低從 100 到 80）
-    expMultiplier: 1.3,  // 經驗值成長倍率（降低從 1.5 到 1.3，讓高等級升級更容易）
+    baseExp: 40,         // 基礎經驗值需求（從 50 進一步降低到 40，讓升級更容易）
+    expMultiplier: 1.15,  // 經驗值成長倍率（從 1.2 降低到 1.15，讓高等級升級更容易）
   },
 
   // ========== 怪物等級系統 ==========
@@ -15,7 +15,8 @@ window.UPGRADE_CONFIG = {
   // 怪物屬性計算公式：
   // - 血量：baseHp + (level - 1) * hpPerLevel
   // - 傷害：baseDamage + (level - 1) * damagePerLevel
-  // - 經驗值：baseExp * level
+  // - 經驗值：baseExp * level * (1 + (level - 1) * 0.3)（非線性成長，高等級怪物經驗值更多）
+  //   等級 1: 10, 等級 2: 26, 等級 3: 48, 等級 4: 76, 等級 5: 110, 等級 6: 150, 等級 7: 196, 等級 8: 248
   enemyLevel: {
     minLevel: 1,        // 最低等級
     maxLevel: 8,        // 最高等級（從 10 改為 8）
@@ -23,7 +24,7 @@ window.UPGRADE_CONFIG = {
     hpPerLevel: 20,     // 每級增加的血量（LV1: 20, LV8: 160）
     baseDamage: 35,     // 等級 1 的基礎傷害
     damagePerLevel: 7,   // 每級增加的傷害（LV1: 35, LV8: 84）
-    baseExp: 10,        // 等級 1 的基礎經驗值（實際經驗值 = baseExp * level，LV1: 10, LV8: 80）
+    baseExp: 10,        // 等級 1 的基礎經驗值（實際經驗值使用非線性公式計算）
   },
 
   // 怪物等級隨時間/玩家等級提升規則
@@ -95,7 +96,7 @@ window.UPGRADE_CONFIG = {
         name: "箭矢爆炸",
         description: "命中怪物後爆炸範圍 +{value} 像素，傷害 +{damage}",
         baseValue: 0,       // 基礎值（0 表示沒有爆炸）
-        increment: 30,      // 每次升級增加 30 像素範圍（從 20 增加 10）
+        increment: 50,      // 每次升級增加 50 像素範圍（從 30 增加 20）
         damageIncrement: 5, // 每次升級增加 5 點傷害
         maxLevel: 5,
         icon: "archer.png",
@@ -129,11 +130,11 @@ window.UPGRADE_CONFIG = {
         icon: "knight.png",
       },
       explosion: {
-        name: "死亡爆炸",
-        description: "騎士死亡時爆炸範圍 +{value} 像素，傷害 +{damage}",
+        name: "受傷爆炸",
+        description: "騎士受傷時爆炸範圍 +{value} 像素，傷害 +{damage}",
         baseValue: 0,       // 基礎值（0 表示沒有爆炸）
-        increment: 40,      // 每次升級增加 40 像素範圍（從 30 增加 10）
-        damageIncrement: 10, // 每次升級增加 10 點傷害
+        increment: 70,      // 每次升級增加 70 像素範圍（從 40 增加 30）
+        damageIncrement: 5, // 每次升級增加 5 點傷害（從 10 降低到 5，因為是受傷爆炸而非死亡爆炸）
         maxLevel: 8,
         icon: "knight.png",
       },
@@ -183,7 +184,7 @@ window.UPGRADE_CONFIG = {
   },
 
   // ========== 能力類型限制 ==========
-  // 每輪遊戲最多可選十種能力類型
-  abilityTypeLimit: 10,  // 能力類型上限
+  // 每輪遊戲最多可選八種能力類型
+  abilityTypeLimit: 8,  // 能力類型上限
 };
 

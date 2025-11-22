@@ -491,10 +491,15 @@ function calculateEnemyLevel() {
 
 function getEnemyLevelConfig(level) {
     const base = window.UPGRADE_CONFIG?.enemyLevel || { baseHp: 20, hpPerLevel: 20, baseDamage: 35, damagePerLevel: 7, baseExp: 10 };
+    // 經驗值非線性成長：等級越高，經驗值成長越快
+    // 公式：baseExp * level * (1 + (level - 1) * 0.3)
+    // 等級 1: 10, 等級 2: 26, 等級 3: 48, 等級 4: 76, 等級 5: 110, 等級 6: 150, 等級 7: 196, 等級 8: 248
+    const expMultiplier = 1 + (level - 1) * 0.3;
+    const exp = Math.floor(base.baseExp * level * expMultiplier);
     return {
         hp: base.baseHp + (level - 1) * base.hpPerLevel,
         damage: base.baseDamage + (level - 1) * base.damagePerLevel,
-        exp: base.baseExp * level
+        exp: exp
     };
 }
 
@@ -754,12 +759,16 @@ function updateEnemies(target) {
         if (!e.stunTimer || e.stunTimer <= 0) {
             const angle = Math.atan2(targetPixelY - e.y, targetPixelX - e.x);
             
-            // 計算實際速度（考慮降速光環）
-            let actualSpeed = ENEMY_SPEED;
+            // 計算實際速度（考慮等級加成和降速光環）
+            // 等級越高速度越快：等級 1 = 100%，等級 8 = 130%（每級約 +4.3%）
+            const enemyLevel = e.level || 1;
+            const levelSpeedMultiplier = 1 + (enemyLevel - 1) * 0.043; // 等級 1: 1.0, 等級 8: 1.301
+            let actualSpeed = ENEMY_SPEED * levelSpeedMultiplier;
+            
             if (e.inSlowAura && e.slowAuraPercent > 0) {
                 // 降速光環效果：速度減少 slowAuraPercent%
                 const slowMultiplier = 1 - (e.slowAuraPercent / 100);
-                actualSpeed = ENEMY_SPEED * slowMultiplier;
+                actualSpeed = actualSpeed * slowMultiplier;
             }
             
             e.x += Math.cos(angle) * actualSpeed;
@@ -870,9 +879,6 @@ function updateEnemies(target) {
                             knightSeg.hitPoints = getKnightHitPoints();
                         }
                         
-                        // 減少騎士的 hitPoints
-                        knightSeg.hitPoints--;
-                        
                         // 為被撞的隊員添加受傷閃爍效果（深紅色）
                         s.hitTimer = 10; // 閃爍 10 幀
                         
@@ -880,22 +886,22 @@ function updateEnemies(target) {
                         const currentTime = performance.now();
                         const isInvincible = invincibilityEndTime > 0 && currentTime < invincibilityEndTime;
                         
-                        // 無敵時不減少 hitPoints
+                        // 無敵時不減少 hitPoints，也不觸發爆炸
                         if (!isInvincible) {
+                            // 記錄扣血前的 hitPoints，用於判斷是否觸發受傷爆炸
+                            const previousHitPoints = knightSeg.hitPoints;
+                            
                             // 減少騎士的 hitPoints
                             knightSeg.hitPoints--;
-                        }
-                        
-                        // 如果騎士的 hitPoints 歸零，移除騎士
-                        if (knightSeg.hitPoints <= 0) {
-                            const knightPixelX = knightSeg.renderX * GRID_SIZE + GRID_SIZE / 2;
-                            const knightPixelY = knightSeg.renderY * GRID_SIZE + GRID_SIZE / 2;
                             
-                            // 騎士死亡爆炸
+                            // 騎士受傷爆炸（每次扣血時觸發，傷害降低一半）
                             const explosionRange = getKnightExplosionRange();
                             const explosionDamage = getKnightExplosionDamage();
                             
-                            if (explosionRange > 0 && explosionDamage > 0) {
+                            if (explosionRange > 0 && explosionDamage > 0 && previousHitPoints > 0) {
+                                const knightPixelX = knightSeg.renderX * GRID_SIZE + GRID_SIZE / 2;
+                                const knightPixelY = knightSeg.renderY * GRID_SIZE + GRID_SIZE / 2;
+                                
                                 // 對範圍內的敵人造成傷害
                                 enemies.forEach(enemy => {
                                     const dx = enemy.x - knightPixelX;
@@ -1000,6 +1006,7 @@ function getKnightExplosionDamage() {
     const upgrade = window.UPGRADE_CONFIG.upgrades.knight?.explosion;
     if (!upgrade) return 0;
     const level = upgradeLevels.knight.explosion || 0;
+    // 受傷爆炸傷害（配置中已經降低一半，從 10 改為 5）
     return (upgrade.damageIncrement || 0) * level;
 }
 
@@ -1169,73 +1176,133 @@ function generateUpgradeOptions() {
     const result = [];
     const usedRoles = new Set();
     
-    // 優先從已解鎖的未滿級選項中選擇
-    if (rolesWithAvailable.length > 0) {
-        // 如果未滿級職業數量 <= 3，從每個職業中隨機選擇一個未滿級選項
-        if (rolesWithAvailable.length <= 3) {
-            rolesWithAvailable.forEach(role => {
-                const roleOptions = byRole.available[role];
-                result.push(roleOptions[Math.floor(Math.random() * roleOptions.length)]);
-                usedRoles.add(role);
+    // 加權隨機選擇函數：從選項列表中根據權重選擇一個
+    function weightedRandomSelect(options) {
+        if (options.length === 0) return null;
+        if (options.length === 1) return options[0];
+        
+        // 計算總權重
+        let totalWeight = 0;
+        options.forEach(opt => {
+            totalWeight += opt.weight || 1.0;
+        });
+        
+        // 生成 0 到總權重之間的隨機數
+        let random = Math.random() * totalWeight;
+        
+        // 遍歷選項，累加權重，當累加值 >= 隨機數時選中
+        let accumulatedWeight = 0;
+        for (let i = 0; i < options.length; i++) {
+            accumulatedWeight += options[i].weight || 1.0;
+            if (accumulatedWeight >= random) {
+                return options[i];
+            }
+        }
+        
+        // 如果沒選中（理論上不應該發生），返回最後一個
+        return options[options.length - 1];
+    }
+    
+    // 從指定職業中選擇一個選項（使用加權隨機）
+    function selectFromRole(role) {
+        const allOptions = [];
+        
+        // 收集該職業的所有可用選項，並設定權重
+        // 已解鎖未滿級：權重 1.5（提高 50%）
+        byRole.available[role].forEach(opt => {
+            allOptions.push({ ...opt, weight: 1.5 });
+        });
+        
+        // 未解鎖選項：權重 1.0（如果能力類型未達上限）
+        if (canUnlockNewAbility) {
+            byRole.locked[role].forEach(opt => {
+                allOptions.push({ ...opt, weight: 1.0 });
             });
+        }
+        
+        // 滿級選項：權重 0.5（降低出現機率）
+        byRole.maxed[role].forEach(opt => {
+            allOptions.push({ ...opt, weight: 0.5 });
+        });
+        
+        if (allOptions.length === 0) return null;
+        
+        // 使用加權隨機選擇
+        return weightedRandomSelect(allOptions);
+    }
+    
+    // 選擇 3 個不同職業的選項
+    // 優先從有未滿級選項的職業中選擇，但使用加權隨機確保已解鎖選項有更高機率
+    const candidateRoles = [];
+    
+    // 優先考慮有已解鎖未滿級選項的職業
+    rolesWithAvailable.forEach(role => {
+        candidateRoles.push({ role, priority: 2 });
+    });
+    
+    // 其次考慮有未解鎖選項的職業（如果能力類型未達上限）
+    if (canUnlockNewAbility) {
+        rolesWithLocked.forEach(role => {
+            if (!candidateRoles.find(c => c.role === role)) {
+                candidateRoles.push({ role, priority: 1 });
+            }
+        });
+    }
+    
+    // 最後考慮只有滿級選項的職業
+    rolesOnlyMaxed.forEach(role => {
+        if (!candidateRoles.find(c => c.role === role)) {
+            candidateRoles.push({ role, priority: 0 });
+        }
+    });
+    
+    // 如果候選職業不足 3 個，允許重複職業（但優先不同職業）
+    while (result.length < 3 && candidateRoles.length > 0) {
+        // 優先從未使用的職業中選擇
+        const unusedRoles = candidateRoles.filter(c => !usedRoles.has(c.role));
+        const rolesToChooseFrom = unusedRoles.length > 0 ? unusedRoles : candidateRoles;
+        
+        // 使用加權隨機選擇職業（優先級高的職業更容易被選中）
+        const selectedCandidate = weightedRandomSelect(
+            rolesToChooseFrom.map(c => ({ ...c, weight: c.priority + 1 }))
+        );
+        
+        if (!selectedCandidate) break;
+        
+        const selectedRole = selectedCandidate.role;
+        const selectedOption = selectFromRole(selectedRole);
+        
+        if (selectedOption) {
+            result.push(selectedOption);
+            usedRoles.add(selectedRole);
         } else {
-            // 如果未滿級職業數量 > 3，隨機選擇 3 個不同的職業
-            while (result.length < 3 && rolesWithAvailable.length > usedRoles.size) {
-                const availableRoles = rolesWithAvailable.filter(r => !usedRoles.has(r));
-                const randomIndex = Math.floor(Math.random() * availableRoles.length);
-                const role = availableRoles[randomIndex];
-                const roleOptions = byRole.available[role];
-                result.push(roleOptions[Math.floor(Math.random() * roleOptions.length)]);
-                usedRoles.add(role);
-            }
+            // 如果該職業沒有選項，從候選列表中移除
+            const index = candidateRoles.findIndex(c => c.role === selectedRole);
+            if (index > -1) candidateRoles.splice(index, 1);
         }
     }
     
-    // 如果選項不足 3 個且能力類型未達上限，從未解鎖選項中補足
-    if (result.length < 3 && canUnlockNewAbility && rolesWithLocked.length > 0) {
-        const availableLockedRoles = rolesWithLocked.filter(r => !usedRoles.has(r));
-        while (result.length < 3 && availableLockedRoles.length > 0 && canUnlockNewAbility) {
-            const randomIndex = Math.floor(Math.random() * availableLockedRoles.length);
-            const role = availableLockedRoles[randomIndex];
-            const roleOptions = byRole.locked[role];
-            if (roleOptions.length > 0) {
-                result.push(roleOptions[Math.floor(Math.random() * roleOptions.length)]);
-                usedRoles.add(role);
-                // 從可用列表中移除已使用的職業
-                const index = availableLockedRoles.indexOf(role);
-                if (index > -1) availableLockedRoles.splice(index, 1);
-            }
-        }
-    }
-    
-    // 如果選項不足 3 個，從只有滿級選項的職業中補足
-    if (result.length < 3 && rolesOnlyMaxed.length > 0) {
-        const availableMaxedRoles = rolesOnlyMaxed.filter(r => !usedRoles.has(r));
-        while (result.length < 3 && availableMaxedRoles.length > 0) {
-            const randomIndex = Math.floor(Math.random() * availableMaxedRoles.length);
-            const role = availableMaxedRoles[randomIndex];
-            const roleOptions = byRole.maxed[role];
-            if (roleOptions.length > 0) {
-                result.push(roleOptions[Math.floor(Math.random() * roleOptions.length)]);
-                usedRoles.add(role);
-                // 從可用列表中移除已使用的職業
-                const index = availableMaxedRoles.indexOf(role);
-                if (index > -1) availableMaxedRoles.splice(index, 1);
-            }
-        }
-    }
-    
-    // 如果仍然不足 3 個（所有職業都只有滿級選項），從所有滿級選項中隨機選擇
+    // 如果仍然不足 3 個，從所有滿級選項中隨機選擇（不限制職業）
     if (result.length < 3) {
         const allMaxedOptions = [];
         Object.keys(byRole.maxed).forEach(role => {
-            allMaxedOptions.push(...byRole.maxed[role]);
+            byRole.maxed[role].forEach(opt => {
+                allMaxedOptions.push({ ...opt, weight: 0.5 });
+            });
         });
         
         while (result.length < 3 && allMaxedOptions.length > 0) {
-            const randomIndex = Math.floor(Math.random() * allMaxedOptions.length);
-            result.push(allMaxedOptions[randomIndex]);
-            allMaxedOptions.splice(randomIndex, 1);
+            const selected = weightedRandomSelect(allMaxedOptions);
+            if (selected) {
+                result.push(selected);
+                // 從列表中移除已選中的選項
+                const index = allMaxedOptions.findIndex(opt => 
+                    opt.role === selected.role && opt.key === selected.key
+                );
+                if (index > -1) allMaxedOptions.splice(index, 1);
+            } else {
+                break;
+            }
         }
     }
     
@@ -1287,7 +1354,7 @@ function createUpgradeOptionElement(option, index) {
         // 滿級時，描述改為隊長最大血量+1
         desc.textContent = "隊長最大血量 +1";
     } else {
-        level.textContent = `Lv ${option.currentLevel + 1} / ${option.upgrade.maxLevel}`;
+        level.textContent = `Lv ${option.currentLevel} / ${option.upgrade.maxLevel}`;
     }
     
     info.appendChild(name);
@@ -1334,6 +1401,23 @@ function selectUpgrade(option) {
         if (option.role === "leader" && option.key === "maxHp") {
             const newMaxHp = getLeaderMaxHp();
             leaderHP = Math.min(newMaxHp, leaderHP + 5); // 增加當前血量
+        }
+        
+        // 如果是騎士可受攻擊次數升級，增加場上所有騎士的 hitPoints
+        if (option.role === "knight" && option.key === "hitPoints") {
+            const upgrade = window.UPGRADE_CONFIG.upgrades.knight.hitPoints;
+            const increment = upgrade.increment || 1; // 升級增量（通常是 1）
+            const newMaxHitPoints = getKnightHitPoints(); // 新的最大 hitPoints
+            
+            // 遍歷場上所有騎士，增加 hitPoints
+            snake.forEach(segment => {
+                if (segment.role === "knight" && segment.hitPoints !== undefined) {
+                    // 增加 hitPoints（增加增量）
+                    segment.hitPoints += increment;
+                    // 但不超過新的最大值
+                    segment.hitPoints = Math.min(segment.hitPoints, newMaxHitPoints);
+                }
+            });
         }
     }
     
@@ -1986,7 +2070,7 @@ function draw() {
       ctx.stroke();
           e.life--;
       } else if (e.type === "knight-explosion") {
-          // 騎士死亡爆炸特效
+          // 騎士受傷爆炸特效
           const progress = 1 - (e.life / 20); // 0 到 1
           e.radius = e.maxRadius * progress;
           ctx.globalAlpha = e.alpha * (1 - progress); // 逐漸淡出
@@ -3210,13 +3294,4 @@ function startCountdown() {
     }, 1000);
 }
 
-// 簡單的升級與 UI 更新 Mock (需整合原 script.js 完整邏輯)
-function updateLevelUI() {
-    playerLevel.innerText = playerLevelValue;
-    // Mock exp logic
-    const req = 100 * Math.pow(1.3, playerLevelValue);
-    const pct = Math.min(100, (playerExp / req) * 100);
-    expBarFill.style.width = `${pct}%`;
-    expText.innerText = `${playerExp}/${Math.floor(req)}`;
-}
 

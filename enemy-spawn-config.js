@@ -21,34 +21,43 @@ window.ENEMY_SPAWN_CONFIG = {
       ],
     },
     {
-      // 玩家等級 3-4：等級 1-2 混合，開始出現等級 2
-      playerLevelRange: [3, 4],
+      // 玩家等級 3-5：等級 1-2 混合，開始出現等級 2
+      playerLevelRange: [3, 5],
       enemyLevels: [
-        { level: 1, weight: 60 },   // 60% 機率
-        { level: 2, weight: 40 },   // 40% 機率
+        { level: 1, weight: 70 },   // 70% 機率
+        { level: 2, weight: 30 },   // 30% 機率
       ],
     },
     {
-      // 玩家等級 5-6：等級 2-4 混合
-      playerLevelRange: [5, 6],
+      // 玩家等級 6-8：等級 2-3 混合
+      playerLevelRange: [6, 8],
       enemyLevels: [
+        { level: 1, weight: 30 },   // 30% 機率
         { level: 2, weight: 50 },   // 50% 機率
-        { level: 3, weight: 35 },   // 35% 機率
-        { level: 4, weight: 15 },   // 15% 機率
+        { level: 3, weight: 20 },   // 20% 機率
       ],
     },
     {
-      // 玩家等級 7-8：等級 3-5 混合
-      playerLevelRange: [7, 8],
+      // 玩家等級 9-11：等級 2-4 混合
+      playerLevelRange: [9, 11],
       enemyLevels: [
+        { level: 2, weight: 40 },   // 40% 機率
         { level: 3, weight: 40 },   // 40% 機率
-        { level: 4, weight: 40 },   // 40% 機率
-        { level: 5, weight: 20 },   // 20% 機率
+        { level: 4, weight: 20 },   // 20% 機率
       ],
     },
     {
-      // 玩家等級 9-10：等級 4-6 混合
-      playerLevelRange: [9, 10],
+      // 玩家等級 12-14：等級 3-5 混合
+      playerLevelRange: [12, 14],
+      enemyLevels: [
+        { level: 3, weight: 35 },   // 35% 機率
+        { level: 4, weight: 40 },   // 40% 機率
+        { level: 5, weight: 25 },   // 25% 機率
+      ],
+    },
+    {
+      // 玩家等級 15-17：等級 4-6 混合
+      playerLevelRange: [15, 17],
       enemyLevels: [
         { level: 4, weight: 35 },   // 35% 機率
         { level: 5, weight: 35 },   // 35% 機率
@@ -56,18 +65,18 @@ window.ENEMY_SPAWN_CONFIG = {
       ],
     },
     {
-      // 玩家等級 11-12：等級 5-7 混合，開始出現高等級
-      playerLevelRange: [11, 12],
+      // 玩家等級 18-20：等級 5-7 混合，開始出現高等級
+      playerLevelRange: [18, 20],
       enemyLevels: [
         { level: 5, weight: 30 },   // 30% 機率
-        { level: 6, weight: 30 },   // 30% 機率
+        { level: 6, weight: 35 },   // 35% 機率
         { level: 7, weight: 25 },   // 25% 機率
-        { level: 8, weight: 15 },   // 15% 機率
+        { level: 8, weight: 10 },   // 10% 機率
       ],
     },
     {
-      // 玩家等級 13+：等級 6-8 混合，以高等級為主
-      playerLevelRange: [13, 999],
+      // 玩家等級 21+：等級 6-8 混合，以高等級為主
+      playerLevelRange: [21, 999],
       enemyLevels: [
         { level: 6, weight: 25 },   // 25% 機率
         { level: 7, weight: 30 },   // 30% 機率

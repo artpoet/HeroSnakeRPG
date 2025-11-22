@@ -193,6 +193,115 @@ canvas#minimap {
   background: rgba(30, 41, 59, 1);
 }
 
+.ability-type-text {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-left: 8px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.debug-btn {
+  margin-left: auto;
+  background: rgba(239, 68, 68, 0.2) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+}
+
+.debug-btn:hover {
+  background: rgba(239, 68, 68, 0.4) !important;
+}
+
+/* 測試密碼輸入框 */
+.debug-password-content {
+  max-width: 400px;
+}
+
+/* 測試修改面板 */
+.debug-content {
+  max-width: 600px;
+  max-height: 80vh;
+}
+
+.debug-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.debug-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.debug-item.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.debug-item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.debug-item-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #4ade80;
+}
+
+.debug-item-desc {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.debug-item-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.debug-btn-control {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #475569;
+  background: #1e293b;
+  color: white;
+  cursor: pointer;
+  font-size: 1rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.debug-btn-control:hover {
+  background: #334155;
+  border-color: #64748b;
+}
+
+.debug-btn-control:active {
+  transform: scale(0.95);
+}
+
+.debug-level-display {
+  min-width: 50px;
+  text-align: center;
+  font-size: 0.9rem;
+  color: #e2e8f0;
+}
+
 /* ========== 主選單 (Home Screen) ========== */
 .home-screen {
   position: fixed;

@@ -2,6 +2,31 @@
 
 本文件記錄開發過程中遇到的重要技術問題、解決方案和經驗教訓。
 
+## 🤖 AI 導讀與開發注意事項 (AI Context & Pitfalls)
+
+**給未來的 AI 開發者**：本專案是基於 HTML5 Canvas 的輕量級 RPG，雖然程式碼不長，但有幾個核心機制極易出錯。請在修改前仔細閱讀以下重點。
+
+### 1. 系統架構核心
+- **升級系統是核心**：所有數值（傷害、範圍、速度）都應從 `upgrade-config.js` 讀取，**絕對不要**在 `script.js` 硬編碼數值。
+- **GM 測試工具**：`syncPlayerLevelWithUpgrades()` 是一個關鍵函數，它將「能力總等級」與「玩家等級」綁定。修改升級邏輯時，務必確認此同步機制是否受到影響。
+- **座標系統**：
+  - **邏輯座標**：`s.x`, `s.y`（網格座標，整數）。
+  - **視覺座標**：`s.renderX`, `s.renderY`（像素座標，浮點數，用於平滑移動）。
+  - **碰撞檢測**：大部分基於**邏輯座標**或**中心點像素距離**。修改碰撞邏輯時要小心區分。
+
+### 2. 容易出錯的陷阱 (Pitfalls)
+- **❌ 雙重傷害邏輯**：弓箭爆炸現在會對「被擊中的目標」造成**兩次傷害**（箭矢本身 + 爆炸）。這是有意為之的機制，請勿修復此「Bug」。
+- **❌ 渲染順序**：`draw()` 函數中的繪製順序至關重要。陰影 -> 本體 -> 光環 -> 投射物 -> UI。顛倒順序會導致視覺錯誤（例如光環蓋住玩家）。
+- **❌ 無敵效果效能**：無敵閃爍使用 `globalCompositeOperation = "lighter"`。這個操作非常耗效能，**絕對不要**在每一幀對全屏使用。目前的實作是只對「玩家 Sprite」使用，且限制頻率（每秒 2 次）。
+- **❌ 陣列操作**：在遍歷 `snake` 或 `enemies` 陣列時進行 `splice` 移除元素極易導致索引錯誤或閃爍。請使用倒序遍歷或標記移除法。
+
+### 3. 關鍵機制實作細節
+- **法師光環**：為了效能，光環不再是 `effects` 陣列的一部分，而是直接在 `draw` 迴圈中繪製。
+- **圖片預解碼**：為了防止首次繪製卡頓，圖片載入時會使用離屏 Canvas 預先繪製一次（Pre-decoding）。
+- **移動插值**：使用**線性插值**（非指數），確保移動速度恆定。不要改回指數插值，否則會出現「一格一格跳動」的感覺。
+
+---
+
 ## 移動流暢度：線性插值 vs 指數插值
 
 ### 問題描述
@@ -148,7 +173,7 @@ s.renderX = s.startRenderX + (s.targetRenderX - s.startRenderX) * progress;
 - **將狀態更新移到邏輯階段**：
   - `hitTimer`、`stunTimer` 等計時器在邏輯更新階段更新
   - 繪製階段只讀取狀態，不修改
-  - 避免在繪製時更新狀態，提升性能
+  - 避免在繪製循環中更新狀態，提升性能
 
 - **回彈效果優化**：
   - 使用衰減係數（0.95）讓回彈快速消失
@@ -294,3 +319,140 @@ canvas#gameCanvas {
    - 回彈效果只影響 `renderX/Y`
    - 不影響邏輯位置（`x, y`）
    - 確保遊戲邏輯一致性
+
+## 能力類型限制系統
+
+### 設計目的
+每輪遊戲最多可解鎖 10 種不同的能力類型，鼓勵玩家專精特定能力，增加策略性和重玩價值。
+
+### 實現方式
+- 使用 `Set` 數據結構追蹤已解鎖的能力類型（格式：`role.key`）
+- 升級時檢查是否為新能力（`upgradeLevels[role][key] === 1`）
+- 如果是新能力，加入 `unlockedAbilityTypes` Set
+- 如果減到 0，從 Set 中移除
+- 生成升級選項時，檢查 `unlockedAbilityTypes.size < abilityTypeLimit`
+
+### 關鍵代碼
+```javascript
+// 追蹤已解鎖的能力類型
+let unlockedAbilityTypes = new Set(); // 格式：role.key
+
+// 升級時檢查是否為新能力
+if (upgradeLevels[role][key] === 1 && !isUnlocked) {
+    unlockedAbilityTypes.add(abilityTypeKey);
+    updateAbilityTypeUI();
+}
+
+// 生成選項時檢查限制
+const isAtLimit = unlockedAbilityTypes.size >= abilityTypeLimit;
+if (!isUnlocked && isAtLimit) {
+    // 不能解鎖新能力
+}
+```
+
+## 爆炸效果系統
+
+### 騎士死亡爆炸
+- **觸發時機**：騎士 hitPoints 歸零時
+- **傷害計算**：對範圍內所有敵人造成 `getKnightExplosionDamage()` 傷害
+- **範圍計算**：使用 `getKnightExplosionRange()` 計算爆炸半徑
+- **視覺特效**：金色爆炸特效（`#f59e0b`），從中心向外擴散，逐漸淡出
+
+### 弓箭爆炸
+- **觸發時機**：箭矢擊中敵人時
+- **傷害計算**：對範圍內其他敵人造成 `getArcherExplosionDamage()` 傷害（不包括被直接擊中的敵人）
+- **範圍計算**：使用 `getArcherExplosionRange()` 計算爆炸半徑
+- **視覺特效**：綠色爆炸特效（`#22c55e`），環狀擴散
+
+### 實現細節
+```javascript
+// 檢查範圍內敵人
+enemies.forEach(enemy => {
+    const dx = enemy.x - explosionX;
+    const dy = enemy.y - explosionY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist <= explosionRange) {
+        damageEnemy(enemy, explosionDamage);
+    }
+});
+
+// 添加爆炸特效
+effects.push({
+    type: "knight-explosion" | "arrow-explosion",
+    x, y,
+    radius: 0,
+    maxRadius: explosionRange,
+    life: 20 | 15,
+    alpha: 0.8 | 0.7,
+    color: "#f59e0b" | "#22c55e"
+});
+```
+
+## 法師縮放效果
+
+### 設計目的
+讓法師有呼吸式的動態感，視覺上更加生動有趣。
+
+### 實現方式
+- 使用 `performance.now()` 追蹤時間
+- 每 2000ms 一個完整的縮放循環
+- 使用 `Math.sin()` 創建平滑的縮放曲線
+- 應用 Canvas 變換實現從中心點縮放
+
+### 關鍵代碼
+```javascript
+// 計算縮放進度（0.0 到 1.0）
+const currentTime = performance.now();
+const elapsed = currentTime - mageScaleStartTime;
+const cycleDuration = 2000; // 2秒
+const progress = (elapsed % cycleDuration) / cycleDuration;
+
+// 使用 sin 函數創建平滑曲線
+const scaleFactor = Math.sin(progress * Math.PI); // 0 → 1 → 0
+const maxScale = 1.0 + (scaleBonus / 100); // 例如 scaleBonus=30 時，maxScale=1.3
+mageScale = 1.0 + (maxScale - 1.0) * scaleFactor;
+
+// 應用縮放變換（從中心點）
+const centerX = pos.x + GRID_SIZE / 2;
+const centerY = pos.y + GRID_SIZE / 2;
+ctx.translate(centerX, centerY);
+ctx.scale(mageScale, mageScale);
+ctx.translate(-centerX, -centerY);
+```
+
+### 注意事項
+- 光環視覺大小也跟隨縮放，但實際傷害範圍不變
+- 縮放效果只影響視覺，不影響碰撞檢測和傷害判定
+
+## 測試功能實現
+
+### 設計目的
+方便開發和測試各種能力組合，驗證遊戲平衡性。
+
+### 實現方式
+- 密碼保護：使用簡單的字符串比較（`password === DEBUG_PASSWORD`）
+- 動態生成修改面板：根據 `upgrade-config.js` 自動生成所有能力選項
+- 實時更新：修改等級時立即更新 `upgradeLevels` 和 `unlockedAbilityTypes`
+- 限制檢查：能力類型達上限時，未解鎖選項變半透明且無法點擊
+
+### 關鍵代碼
+```javascript
+// 渲染修改面板
+function renderDebugPanel() {
+    // 遍歷所有升級選項
+    Object.keys(config).forEach(role => {
+        Object.keys(config[role]).forEach(key => {
+            const isUnlocked = unlockedAbilityTypes.has(`${role}.${key}`);
+            const isDisabled = !isUnlocked && isAtLimit;
+            // 生成 HTML...
+        });
+    });
+    
+    // 綁定加減按鈕事件
+    // 增加時檢查限制，減少時更新追蹤
+}
+```
+
+### 安全考量
+- 密碼僅用於防止誤觸，不是真正的安全措施
+- 測試功能僅在開發環境使用，生產環境可考慮移除

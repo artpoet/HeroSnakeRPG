@@ -96,11 +96,14 @@ let gameStartTime = 0;
 
 // 升級狀態
 let upgradeLevels = {
-  mage: { auraRange: 0, auraDamage: 0 },
-  archer: { arrowCount: 0, arrowSpeed: 0 },
-  knight: { hitPoints: 0, deathBonus: 0 },
+  mage: { auraRange: 0, auraDamage: 0, scaleBonus: 0, slowAura: 0 },
+  archer: { arrowCount: 0, arrowSpeed: 0, explosion: 0, critical: 0 },
+  knight: { hitPoints: 0, deathBonus: 0, explosion: 0, invincibility: 0 },
   leader: { maxHp: 0, damage: 0, moveSpeed: 0 },
 };
+
+// 能力類型追蹤（追蹤已解鎖的能力類型）
+let unlockedAbilityTypes = new Set(); // 使用 Set 追蹤已解鎖的能力類型 (role.key 格式)
 
 // 資源載入
 let assetsLoaded = 0;
@@ -391,16 +394,20 @@ function startGame() {
   
   // 重置升級
   upgradeLevels = {
-    mage: { auraRange: 0, auraDamage: 0 },
-    archer: { arrowCount: 0, arrowSpeed: 0 },
-    knight: { hitPoints: 0, deathBonus: 0 },
+    mage: { auraRange: 0, auraDamage: 0, scaleBonus: 0, slowAura: 0 },
+    archer: { arrowCount: 0, arrowSpeed: 0, explosion: 0, critical: 0 },
+    knight: { hitPoints: 0, deathBonus: 0, explosion: 0, invincibility: 0 },
     leader: { maxHp: 0, damage: 0, moveSpeed: 0 },
   };
+  unlockedAbilityTypes = new Set(); // 重置能力類型追蹤
+  updateAbilityTypeUI(); // 更新能力類型 UI 顯示
   leaderHP = getLeaderMaxHp();
 
   // 初始化時間戳記，確保第一次移動能立即執行
   lastMoveTime = 0;
   lastEnemySpawn = 0;
+  mageScaleStartTime = performance.now(); // 重置法師縮放時間
+  invincibilityEndTime = 0; // 重置無敵狀態
   
   if (animationId) cancelAnimationFrame(animationId);
   animationId = requestAnimationFrame(gameLoop);
@@ -746,8 +753,17 @@ function updateEnemies(target) {
         // 只有在沒有緩停時才移動
         if (!e.stunTimer || e.stunTimer <= 0) {
             const angle = Math.atan2(targetPixelY - e.y, targetPixelX - e.x);
-            e.x += Math.cos(angle) * ENEMY_SPEED;
-            e.y += Math.sin(angle) * ENEMY_SPEED;
+            
+            // 計算實際速度（考慮降速光環）
+            let actualSpeed = ENEMY_SPEED;
+            if (e.inSlowAura && e.slowAuraPercent > 0) {
+                // 降速光環效果：速度減少 slowAuraPercent%
+                const slowMultiplier = 1 - (e.slowAuraPercent / 100);
+                actualSpeed = ENEMY_SPEED * slowMultiplier;
+            }
+            
+            e.x += Math.cos(angle) * actualSpeed;
+            e.y += Math.sin(angle) * actualSpeed;
         }
         
         if (e.hitTimer > 0) e.hitTimer--;
@@ -778,18 +794,24 @@ function updateEnemies(target) {
                 
                 if (s.role === "leader") {
                     // 領隊撞到敵人：領隊扣血，敵人也要扣血
-                    // 領隊傷害：基礎 0，升級後每級 +1
+                    // 領隊傷害：基礎 0，升級後每級 +5
                     const leaderDamage = getUpgradedValue("leader", "damage", 0);
                     if (leaderDamage > 0) {
                         damageEnemy(e, leaderDamage);
                     }
                     
-                    // 領隊受傷：使用敵人的傷害值
-                    const enemyDamage = e.damage || 35;
-                    leaderHP = Math.max(0, leaderHP - enemyDamage);
-                    if (leaderHP <= 0) {
-                        triggerGameOver();
-                        return;
+                    // 檢查無敵狀態
+                    const currentTime = performance.now();
+                    const isInvincible = invincibilityEndTime > 0 && currentTime < invincibilityEndTime;
+                    
+                    // 領隊受傷：使用敵人的傷害值（無敵時不扣血）
+                    if (!isInvincible) {
+                        const enemyDamage = e.damage || 35;
+                        leaderHP = Math.max(0, leaderHP - enemyDamage);
+                        if (leaderHP <= 0) {
+                            triggerGameOver();
+                            return;
+                        }
                     }
                     
                     // 碰撞回彈：計算從敵人指向玩家的方向（碰撞方向）
@@ -854,8 +876,58 @@ function updateEnemies(target) {
                         // 為被撞的隊員添加受傷閃爍效果（深紅色）
                         s.hitTimer = 10; // 閃爍 10 幀
                         
+                        // 檢查無敵狀態
+                        const currentTime = performance.now();
+                        const isInvincible = invincibilityEndTime > 0 && currentTime < invincibilityEndTime;
+                        
+                        // 無敵時不減少 hitPoints
+                        if (!isInvincible) {
+                            // 減少騎士的 hitPoints
+                            knightSeg.hitPoints--;
+                        }
+                        
                         // 如果騎士的 hitPoints 歸零，移除騎士
                         if (knightSeg.hitPoints <= 0) {
+                            const knightPixelX = knightSeg.renderX * GRID_SIZE + GRID_SIZE / 2;
+                            const knightPixelY = knightSeg.renderY * GRID_SIZE + GRID_SIZE / 2;
+                            
+                            // 騎士死亡爆炸
+                            const explosionRange = getKnightExplosionRange();
+                            const explosionDamage = getKnightExplosionDamage();
+                            
+                            if (explosionRange > 0 && explosionDamage > 0) {
+                                // 對範圍內的敵人造成傷害
+                                enemies.forEach(enemy => {
+                                    const dx = enemy.x - knightPixelX;
+                                    const dy = enemy.y - knightPixelY;
+                                    const dist = Math.sqrt(dx * dx + dy * dy);
+                                    
+                                    if (dist <= explosionRange) {
+                                        damageEnemy(enemy, explosionDamage);
+                                    }
+                                });
+                                
+                                // 添加爆炸特效
+                                effects.push({
+                                    type: "knight-explosion",
+                                    x: knightPixelX,
+                                    y: knightPixelY,
+                                    radius: 0,
+                                    maxRadius: explosionRange,
+                                    life: 20,
+                                    alpha: 0.8,
+                                    color: "#f59e0b" // 金色
+                                });
+                            }
+                            
+                            // 騎士無敵效果
+                            const invincibilityDuration = getKnightInvincibility();
+                            if (invincibilityDuration > 0) {
+                                const currentTime = performance.now();
+                                invincibilityEndTime = currentTime + (invincibilityDuration * 1000); // 轉換為毫秒
+                                // 無敵效果已通過勇者圖片上的閃爍顯示，不需要全屏特效
+                            }
+                            
                             snake.splice(knightIdx, 1);
                             scoreValue.textContent = snake.length;
                             
@@ -890,11 +962,17 @@ function updateEnemies(target) {
                     }
                     
                     if (!knightFound) {
-                        // 沒有騎士，移除被撞的隊員
-                        // 在移除前添加受傷閃爍效果（雖然會立即移除，但視覺上更連貫）
-                        s.hitTimer = 3; // 短暫閃爍
-                        snake.splice(index, 1);
-                        scoreValue.textContent = snake.length;
+                        // 沒有騎士，檢查無敵狀態
+                        const currentTime = performance.now();
+                        const isInvincible = invincibilityEndTime > 0 && currentTime < invincibilityEndTime;
+                        
+                        if (!isInvincible) {
+                            // 沒有無敵，移除被撞的隊員
+                            // 在移除前添加受傷閃爍效果（雖然會立即移除，但視覺上更連貫）
+                            s.hitTimer = 3; // 短暫閃爍
+                            snake.splice(index, 1);
+                            scoreValue.textContent = snake.length;
+                        }
                     }
                 }
             }
@@ -907,6 +985,70 @@ function updateEnemies(target) {
 
 function getKnightHitPoints() {
     return getUpgradedValue("knight", "hitPoints", 1);
+}
+
+function getKnightExplosionRange() {
+    if (!window.UPGRADE_CONFIG) return 0;
+    const upgrade = window.UPGRADE_CONFIG.upgrades.knight?.explosion;
+    if (!upgrade) return 0;
+    const level = upgradeLevels.knight.explosion || 0;
+    return upgrade.baseValue + (upgrade.increment * level);
+}
+
+function getKnightExplosionDamage() {
+    if (!window.UPGRADE_CONFIG) return 0;
+    const upgrade = window.UPGRADE_CONFIG.upgrades.knight?.explosion;
+    if (!upgrade) return 0;
+    const level = upgradeLevels.knight.explosion || 0;
+    return (upgrade.damageIncrement || 0) * level;
+}
+
+function getArcherExplosionRange() {
+    if (!window.UPGRADE_CONFIG) return 0;
+    const upgrade = window.UPGRADE_CONFIG.upgrades.archer?.explosion;
+    if (!upgrade) return 0;
+    const level = upgradeLevels.archer.explosion || 0;
+    return upgrade.baseValue + (upgrade.increment * level);
+}
+
+function getArcherExplosionDamage() {
+    if (!window.UPGRADE_CONFIG) return 0;
+    const upgrade = window.UPGRADE_CONFIG.upgrades.archer?.explosion;
+    if (!upgrade) return 0;
+    const level = upgradeLevels.archer.explosion || 0;
+    return (upgrade.damageIncrement || 0) * level;
+}
+
+function getMageScaleBonus() {
+    return getUpgradedValue("mage", "scaleBonus", 0);
+}
+
+function getMageSlowAura() {
+    return getUpgradedValue("mage", "slowAura", 0);
+}
+
+function getArcherCritical() {
+    return getUpgradedValue("archer", "critical", 0);
+}
+
+function getKnightInvincibility() {
+    return getUpgradedValue("knight", "invincibility", 0);
+}
+
+// 獲取當前法師光環的縮放係數（用於傷害範圍和視覺顯示）
+function getCurrentMageScale() {
+    const scaleBonus = getMageScaleBonus();
+    if (scaleBonus === 0) return 1.0;
+    
+    const currentTime = performance.now();
+    const elapsed = currentTime - mageScaleStartTime;
+    const cycleDuration = 2000; // 2秒一個循環
+    const progress = (elapsed % cycleDuration) / cycleDuration; // 0.0 到 1.0
+    
+    // 使用 sin 函數創建平滑的縮放效果（從 1.0 → 1+bonus → 1.0）
+    const scaleFactor = Math.sin(progress * Math.PI); // 0 到 1 到 0
+    const maxScale = 1.0 + (scaleBonus / 100); // 例如 scaleBonus=30 時，maxScale=1.3
+    return 1.0 + (maxScale - 1.0) * scaleFactor;
 }
 
 function addExp(amount) {
@@ -966,30 +1108,42 @@ function generateUpgradeOptions() {
     if (!window.UPGRADE_CONFIG) return [];
     
     const config = window.UPGRADE_CONFIG.upgrades;
+    const abilityTypeLimit = window.UPGRADE_CONFIG.abilityTypeLimit || 10;
     
-    // 按職業分組，分別記錄未滿級和滿級的選項
+    // 按職業分組，分別記錄未滿級、滿級、未解鎖的選項
     const byRole = {
-        available: {}, // 未滿級選項
-        maxed: {}      // 滿級選項
+        available: {},     // 未滿級且已解鎖的選項
+        locked: {},        // 未滿級但未解鎖的選項（能力類型未達上限才能選）
+        maxed: {}          // 滿級選項
     };
     
     Object.keys(config).forEach(role => {
         byRole.available[role] = [];
+        byRole.locked[role] = [];
         byRole.maxed[role] = [];
         
         Object.keys(config[role]).forEach(upgradeKey => {
             const upgrade = config[role][upgradeKey];
             const currentLevel = upgradeLevels[role][upgradeKey];
+            const abilityTypeKey = `${role}.${upgradeKey}`;
+            const isUnlocked = unlockedAbilityTypes.has(abilityTypeKey);
             
             const option = {
                 role,
                 key: upgradeKey,
                 upgrade,
                 currentLevel,
+                abilityTypeKey,
             };
             
             if (currentLevel < upgrade.maxLevel) {
-                byRole.available[role].push(option);
+                if (isUnlocked) {
+                    // 已解鎖，可以繼續升級
+                    byRole.available[role].push(option);
+                } else {
+                    // 未解鎖，需要檢查能力類型限制
+                    byRole.locked[role].push(option);
+                }
             } else {
                 option.isMaxed = true;
                 byRole.maxed[role].push(option);
@@ -1000,14 +1154,22 @@ function generateUpgradeOptions() {
     // 獲取所有職業列表
     const allRoles = Object.keys(config);
     
+    // 檢查能力類型是否已達上限
+    const canUnlockNewAbility = unlockedAbilityTypes.size < abilityTypeLimit;
+    
     // 分離有未滿級選項的職業和只有滿級選項的職業
     const rolesWithAvailable = allRoles.filter(role => byRole.available[role].length > 0);
-    const rolesOnlyMaxed = allRoles.filter(role => byRole.available[role].length === 0 && byRole.maxed[role].length > 0);
+    const rolesWithLocked = allRoles.filter(role => byRole.locked[role].length > 0);
+    const rolesOnlyMaxed = allRoles.filter(role => 
+        byRole.available[role].length === 0 && 
+        byRole.locked[role].length === 0 && 
+        byRole.maxed[role].length > 0
+    );
     
     const result = [];
     const usedRoles = new Set();
     
-    // 優先從有未滿級選項的職業中選擇
+    // 優先從已解鎖的未滿級選項中選擇
     if (rolesWithAvailable.length > 0) {
         // 如果未滿級職業數量 <= 3，從每個職業中隨機選擇一個未滿級選項
         if (rolesWithAvailable.length <= 3) {
@@ -1025,6 +1187,23 @@ function generateUpgradeOptions() {
                 const roleOptions = byRole.available[role];
                 result.push(roleOptions[Math.floor(Math.random() * roleOptions.length)]);
                 usedRoles.add(role);
+            }
+        }
+    }
+    
+    // 如果選項不足 3 個且能力類型未達上限，從未解鎖選項中補足
+    if (result.length < 3 && canUnlockNewAbility && rolesWithLocked.length > 0) {
+        const availableLockedRoles = rolesWithLocked.filter(r => !usedRoles.has(r));
+        while (result.length < 3 && availableLockedRoles.length > 0 && canUnlockNewAbility) {
+            const randomIndex = Math.floor(Math.random() * availableLockedRoles.length);
+            const role = availableLockedRoles[randomIndex];
+            const roleOptions = byRole.locked[role];
+            if (roleOptions.length > 0) {
+                result.push(roleOptions[Math.floor(Math.random() * roleOptions.length)]);
+                usedRoles.add(role);
+                // 從可用列表中移除已使用的職業
+                const index = availableLockedRoles.indexOf(role);
+                if (index > -1) availableLockedRoles.splice(index, 1);
             }
         }
     }
@@ -1095,6 +1274,10 @@ function createUpgradeOptionElement(option, index) {
     // 對於負數 increment（如移動速度），顯示絕對值
     const displayValue = Math.abs(option.upgrade.increment || 1);
     let descText = option.upgrade.description.replace("{value}", displayValue);
+    // 如果有 damageIncrement，也替換 {damage}
+    if (option.upgrade.damageIncrement !== undefined) {
+        descText = descText.replace("{damage}", option.upgrade.damageIncrement);
+    }
     desc.textContent = descText;
     
     const level = document.createElement("div");
@@ -1124,7 +1307,7 @@ function createUpgradeOptionElement(option, index) {
 function selectUpgrade(option) {
     if (!window.UPGRADE_CONFIG) return;
     
-    // 如果是滿級選項，固定增加隊長最大血量
+    // 如果是滿級選項，固定增加隊長最大血量（不算入能力類型）
     if (option.isMaxed) {
         const config = window.UPGRADE_CONFIG.maxedOutBonus || { hpIncrease: 1 };
         const hpIncrease = config.hpIncrease || 1;
@@ -1134,8 +1317,18 @@ function selectUpgrade(option) {
         const newMaxHp = getLeaderMaxHp();
         leaderHP = Math.min(newMaxHp, leaderHP + 5); // 增加當前血量
     } else {
+        // 檢查是否是新解鎖的能力類型
+        const abilityTypeKey = option.abilityTypeKey || `${option.role}.${option.key}`;
+        const isNewAbility = !unlockedAbilityTypes.has(abilityTypeKey);
+        
         // 正常升級
         upgradeLevels[option.role][option.key] += 1;
+        
+        // 如果是新能力，加入已解鎖列表
+        if (isNewAbility) {
+            unlockedAbilityTypes.add(abilityTypeKey);
+            updateAbilityTypeUI(); // 更新 UI 顯示
+        }
         
         // 如果是隊長血量升級，立即更新當前血量上限
         if (option.role === "leader" && option.key === "maxHp") {
@@ -1146,6 +1339,15 @@ function selectUpgrade(option) {
     
     upgradeOverlay.classList.add("hidden");
     isChoosingUpgrade = false;
+}
+
+// 更新能力類型 UI 顯示
+function updateAbilityTypeUI() {
+    const abilityTypeText = document.getElementById("abilityTypeText");
+    if (abilityTypeText) {
+        const limit = window.UPGRADE_CONFIG?.abilityTypeLimit || 10;
+        abilityTypeText.textContent = `能力類型: ${unlockedAbilityTypes.size}/${limit}`;
+    }
 }
 
 // ========== 弓箭手攻擊系統 ==========
@@ -1187,16 +1389,23 @@ function handleArcherAttacks(timestamp) {
         const angle = Math.atan2(nearestEnemy.y - segCenter.y, nearestEnemy.x - segCenter.x);
         const arrowCount = getArcherArrowCount();
         const arrowSpeed = getArcherArrowSpeed();
+        const criticalChance = getArcherCritical(); // 必殺機率
         
         for (let i = 0; i < arrowCount; i++) {
             const spreadAngle = arrowCount > 1 ? (i - (arrowCount - 1) / 2) * 0.2 : 0;
             const offsetDistance = GRID_SIZE * 0.6;
+            
+            // 判斷是否觸發必殺
+            const isCritical = criticalChance > 0 && Math.random() * 100 < criticalChance;
+            const actualDamage = isCritical ? ARROW_DAMAGE * 2 : ARROW_DAMAGE;
+            
             projectiles.push({
                 x: segCenter.x + Math.cos(angle + spreadAngle) * offsetDistance,
                 y: segCenter.y + Math.sin(angle + spreadAngle) * offsetDistance,
                 vx: Math.cos(angle + spreadAngle) * arrowSpeed,
                 vy: Math.sin(angle + spreadAngle) * arrowSpeed,
-                damage: ARROW_DAMAGE,
+                damage: actualDamage,
+                isCritical: isCritical, // 標記是否為致命一擊
                 shooterIndex: index,
                 framesAlive: 0
             });
@@ -1269,7 +1478,40 @@ function updateProjectiles() {
             const dist = Math.hypot(proj.x - enemy.x, proj.y - enemy.y);
             if (dist < GRID_SIZE * 0.4) {
                 // 擊中敵人，造成傷害並移除弓箭
-                damageEnemy(enemy, proj.damage);
+                damageEnemy(enemy, proj.damage, proj.isCritical);
+                
+                // 弓箭爆炸效果
+                const explosionRange = getArcherExplosionRange();
+                const explosionDamage = getArcherExplosionDamage();
+                
+                if (explosionRange > 0 && explosionDamage > 0) {
+                    // 對範圍內的所有敵人造成爆炸傷害（包括被擊中的敵人，這是額外的第二次傷害）
+                    enemies.forEach(otherEnemy => {
+                        if (otherEnemy.hp > 0 && !otherEnemy.dead) {
+                            const dx = otherEnemy.x - proj.x;
+                            const dy = otherEnemy.y - proj.y;
+                            const distance = Math.sqrt(dx * dx + dy * dy);
+                            
+                            if (distance <= explosionRange) {
+                                // 對範圍內的所有敵人造成爆炸傷害（包括被弓箭直接擊中的敵人）
+                                damageEnemy(otherEnemy, explosionDamage);
+                            }
+                        }
+                    });
+                    
+                    // 添加爆炸特效
+                    effects.push({
+                        type: "arrow-explosion",
+                        x: proj.x,
+                        y: proj.y,
+                        radius: 0,
+                        maxRadius: explosionRange,
+                        life: 15,
+                        alpha: 0.7,
+                        color: "#22c55e" // 綠色
+                    });
+                }
+                
                 projectilesToRemove.add(projIndex);
                 break; // 一支箭只能擊中一個敵人，擊中後立即停止檢查
             }
@@ -1289,6 +1531,10 @@ const AURA_HIT_INTERVAL = 200; // 法師光環傷害間隔（毫秒），降低�
 function handleMageAura(timestamp) {
     if (!window.UPGRADE_CONFIG) return;
     
+    // 獲取當前的光環縮放係數（只計算一次，避免重複計算）
+    const currentScale = getCurrentMageScale();
+    const slowAura = getMageSlowAura(); // 獲取降速光環效果
+    
     snake.forEach((segment, index) => {
         if (index === 0) return; // 跳過隊長
         if (segment.role !== "mage") return;
@@ -1298,23 +1544,26 @@ function handleMageAura(timestamp) {
             y: segment.renderY * GRID_SIZE + GRID_SIZE / 2
         };
         
-        const auraRadius = getMageAuraRadius();
+        const baseAuraRadius = getMageAuraRadius();
         const auraDamage = getMageAuraDamage();
+        
+        // 應用縮放到實際傷害範圍（與視覺一致）
+        const scaledAuraRadius = baseAuraRadius * currentScale;
         
         let hasEnemyInRange = false;
         
         // 對範圍內敵人造成傷害
         // 視覺上光環的線條寬度會讓圓圈看起來更大
         // 線條寬度為 2-4px（根據是否有敵人），會向外延伸 lineWidth/2
-        // 光環的視覺外邊緣距離法師中心 = auraRadius + lineWidth/2
+        // 光環的視覺外邊緣距離法師中心 = scaledAuraRadius + lineWidth/2
         // 怪物也有大小（GRID_SIZE），怪物邊緣距離怪物中心 = GRID_SIZE/2
         // 當光環邊緣和怪物邊緣接觸時：
-        //   怪物中心距離 - GRID_SIZE/2 = auraRadius + lineWidth/2
-        //   怪物中心距離 = auraRadius + lineWidth/2 + GRID_SIZE/2
+        //   怪物中心距離 - GRID_SIZE/2 = scaledAuraRadius + lineWidth/2
+        //   怪物中心距離 = scaledAuraRadius + lineWidth/2 + GRID_SIZE/2
         // 使用最大線條寬度（4px）來計算，確保傷害範圍不會小於視覺範圍
         const maxLineWidth = 4; // 有敵人時的線條寬度
         const enemyRadius = GRID_SIZE / 2; // 怪物半徑
-        const effectiveRadius = auraRadius + maxLineWidth / 2 + enemyRadius; // 有效傷害範圍（考慮光環線條和怪物大小）
+        const effectiveRadius = scaledAuraRadius + maxLineWidth / 2 + enemyRadius; // 有效傷害範圍（考慮縮放、光環線條和怪物大小）
         
         enemies.forEach(e => {
             if (e.hp <= 0 || e.dead) return;
@@ -1330,6 +1579,18 @@ function handleMageAura(timestamp) {
                     damageEnemy(e, auraDamage);
                     e.lastAuraHit = timestamp;
                 }
+                
+                // 降速光環效果：標記敵人在光環內
+                if (slowAura > 0) {
+                    e.inSlowAura = true;
+                    e.slowAuraPercent = slowAura; // 存儲降速百分比
+                }
+            } else {
+                // 不在光環範圍內，移除降速標記
+                if (e.inSlowAura) {
+                    e.inSlowAura = false;
+                    e.slowAuraPercent = 0;
+                }
             }
         });
         
@@ -1337,7 +1598,7 @@ function handleMageAura(timestamp) {
         segment.auraInfo = {
             x: mageCenter.x,
             y: mageCenter.y,
-            radius: auraRadius,
+            radius: baseAuraRadius, // 存儲基礎半徑，繪製時再應用縮放
             hasEnemy: hasEnemyInRange
         };
     });
@@ -1352,7 +1613,7 @@ function getMageAuraDamage() {
 }
 
 // ========== 敵人傷害系統 ==========
-function damageEnemy(enemy, amount) {
+function damageEnemy(enemy, amount, isCritical = false) {
     if (!enemy || enemy.hp <= 0) return;
     
     const oldHp = enemy.hp;
@@ -1364,12 +1625,27 @@ function damageEnemy(enemy, amount) {
     if (amount > 0) {
         effects.push({
             type: "text",
-            text: `-${Math.ceil(amount)}`,
+            text: isCritical ? `致命 -${Math.ceil(amount)}` : `-${Math.ceil(amount)}`,
             x: enemy.x,
             y: enemy.y,
             life: 30,
-            color: "#ef4444"
+            color: isCritical ? "#fbbf24" : "#ef4444", // 致命一擊顯示金色
+            isCritical: isCritical // 標記為致命一擊（用於特效）
         });
+        
+        // 如果是致命一擊，添加額外的視覺特效
+        if (isCritical) {
+            effects.push({
+                type: "critical-flash",
+                x: enemy.x,
+                y: enemy.y,
+                radius: 0,
+                maxRadius: GRID_SIZE * 1.2,
+                life: 10,
+                alpha: 0.8,
+                color: "#fbbf24" // 金色
+            });
+        }
     }
     
     // 擊殺敵人
@@ -1510,6 +1786,18 @@ function draw() {
   });
   
   // 6. 繪製蛇 (從後往前繪製，確保頭在最上面)
+  // 無敵狀態檢查（在循環外只計算一次，提升效能）
+  const currentTime = performance.now();
+  const isInvincible = invincibilityEndTime > 0 && currentTime < invincibilityEndTime;
+  let invincibilityFlashAlpha = 0;
+  if (isInvincible) {
+      // 降低閃爍頻率（每秒 2 次，更舒適）
+      const flashSpeed = 2;
+      const flashPhase = (currentTime / 1000) * flashSpeed * Math.PI * 2;
+      // 使用 sin 函數，讓閃爍更平滑
+      invincibilityFlashAlpha = (Math.sin(flashPhase) + 1) / 2; // 0 到 1
+  }
+  
   for (let i = snake.length - 1; i >= 0; i--) {
       const s = snake[i];
       const pos = camera.transform(s.renderX * GRID_SIZE, s.renderY * GRID_SIZE);
@@ -1540,10 +1828,24 @@ function draw() {
               }
           }
           
-      ctx.save();
+          ctx.save();
           ctx.globalAlpha = knightAlpha;
           ASSETS[assetKey].draw(ctx, pos.x, pos.y, GRID_SIZE, s.facing);
           ctx.restore();
+          
+          // 無敵閃爍效果（全隊同步淺黃色閃爍，更明顯）
+          if (isInvincible && invincibilityFlashAlpha > 0.1) {
+              ctx.save();
+              // 使用 lighter 混合模式，讓淺色更亮更明顯，對比度更大
+              ctx.globalCompositeOperation = "lighter";
+              ctx.globalAlpha = invincibilityFlashAlpha * 0.9; // 高亮度
+              // 使用更亮的淺黃色，對比度更大
+              ctx.fillStyle = "#fffbeb"; // 非常淺的黃色（接近白色，但帶黃色調）
+              ctx.fillRect(pos.x, pos.y, GRID_SIZE, GRID_SIZE);
+              ctx.globalCompositeOperation = "source-over";
+              ctx.globalAlpha = 1;
+              ctx.restore();
+          }
           
           // 如果正在受傷閃爍，用深紅色覆蓋（hitTimer 已在邏輯更新階段更新）
           if (s.hitTimer !== undefined && s.hitTimer > 0) {
@@ -1559,7 +1861,12 @@ function draw() {
           if (s.role === "mage" && s.auraInfo) {
               const auraPos = camera.transform(s.auraInfo.x, s.auraInfo.y);
               // 檢查是否在畫面內（加上光環半徑的緩衝）
-              const auraRadius = s.auraInfo.radius;
+              const baseAuraRadius = s.auraInfo.radius;
+              
+              // 獲取當前縮放係數（與傷害範圍一致）
+              const visualAuraScale = getCurrentMageScale();
+              const auraRadius = baseAuraRadius * visualAuraScale; // 應用縮放
+              
               if (auraPos.x > -auraRadius && auraPos.x < canvas.width + auraRadius && 
                   auraPos.y > -auraRadius && auraPos.y < canvas.height + auraRadius) {
                   ctx.save();
@@ -1567,17 +1874,44 @@ function draw() {
                   ctx.globalAlpha = isActive ? 0.6 : 0.2; // 有敵人時更亮
                   ctx.strokeStyle = isActive ? "#93c5fd" : "#60a5fa"; // 有敵人時更亮的藍色
                   ctx.lineWidth = isActive ? 4 : 2; // 有敵人時線條更粗
-      ctx.beginPath();
+                  ctx.beginPath();
                   ctx.arc(auraPos.x, auraPos.y, auraRadius, 0, Math.PI * 2);
                   ctx.stroke();
-      ctx.restore();
-    }
+                  ctx.restore();
+              }
           }
       }
       
       // 隊長血條
       if (i === 0) {
           drawHealthBar(ctx, pos.x, pos.y - 15, GRID_SIZE, 5, leaderHP, getLeaderMaxHp());
+          
+          // 無敵狀態倒數顯示（使用循環外計算的 currentTime 和 isInvincible）
+          if (isInvincible) {
+              const remainingTime = Math.ceil((invincibilityEndTime - currentTime) / 1000);
+              if (remainingTime > 0) {
+                  ctx.save();
+                  ctx.fillStyle = "#fbbf24"; // 金色
+                  ctx.strokeStyle = "#854d0e";
+                  ctx.lineWidth = 3;
+                  ctx.font = "bold 14px sans-serif";
+                  ctx.textAlign = "center";
+                  ctx.textBaseline = "middle";
+                  // 繪製文字陰影效果，讓文字更明顯
+                  ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
+                  ctx.shadowBlur = 4;
+                  ctx.shadowOffsetX = 2;
+                  ctx.shadowOffsetY = 2;
+                  ctx.strokeText(`無敵 ${remainingTime}s`, pos.x + GRID_SIZE / 2, pos.y - 25);
+                  ctx.fillText(`無敵 ${remainingTime}s`, pos.x + GRID_SIZE / 2, pos.y - 25);
+                  ctx.shadowBlur = 0;
+                  ctx.shadowOffsetX = 0;
+                  ctx.shadowOffsetY = 0;
+                  ctx.textAlign = "left";
+                  ctx.textBaseline = "alphabetic";
+                  ctx.restore();
+              }
+          }
       }
   }
   
@@ -1602,8 +1936,21 @@ function draw() {
       
       if (e.type === "text") {
           ctx.fillStyle = e.color;
-          ctx.font = "bold 14px sans-serif";
+          // 致命一擊的文字更大
+          const fontSize = e.isCritical ? 20 : 14;
+          ctx.font = `bold ${fontSize}px sans-serif`;
           ctx.fillText(e.text, pos.x, pos.y - (30 - e.life)); // 向上飄
+          e.life--;
+      } else if (e.type === "critical-flash") {
+          // 致命一擊閃光特效（快速擴散）
+          const progress = 1 - (e.life / 10); // 0 到 1
+          e.radius = e.maxRadius * progress;
+          ctx.globalAlpha = e.alpha * (1 - progress); // 逐漸淡出
+          ctx.strokeStyle = e.color;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(pos.x, pos.y, e.radius, 0, Math.PI * 2);
+          ctx.stroke();
           e.life--;
       } else if (e.type === "aura") {
           // 法師光環特效（已移除，改為直接繪製）
@@ -1637,6 +1984,31 @@ function draw() {
       ctx.beginPath();
           ctx.arc(pos.x, pos.y, e.radius, 0, Math.PI * 2);
       ctx.stroke();
+          e.life--;
+      } else if (e.type === "knight-explosion") {
+          // 騎士死亡爆炸特效
+          const progress = 1 - (e.life / 20); // 0 到 1
+          e.radius = e.maxRadius * progress;
+          ctx.globalAlpha = e.alpha * (1 - progress); // 逐漸淡出
+          ctx.fillStyle = e.color;
+          ctx.strokeStyle = e.color;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(pos.x, pos.y, e.radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = e.alpha * 0.5 * (1 - progress);
+          ctx.stroke();
+          e.life--;
+      } else if (e.type === "arrow-explosion") {
+          // 弓箭爆炸特效
+          const progress = 1 - (e.life / 15); // 0 到 1
+          e.radius = e.maxRadius * progress;
+          ctx.globalAlpha = e.alpha * (1 - progress); // 逐漸淡出
+          ctx.strokeStyle = e.color;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(pos.x, pos.y, e.radius, 0, Math.PI * 2);
+          ctx.stroke();
           e.life--;
       } else if (e.type === "item-star") {
           // 道具收集星星粒子特效
@@ -2237,6 +2609,238 @@ if (leaderboardCloseBtn) {
             isPaused = false;
             startCountdown();
         }
+    });
+}
+
+// ========== 測試修改功能 ==========
+const DEBUG_PASSWORD = "690630";
+const debugBtn = document.getElementById("debugBtn");
+const debugPasswordModal = document.getElementById("debugPasswordModal");
+const debugPasswordCloseBtn = document.getElementById("debugPasswordCloseBtn");
+const debugPasswordInput = document.getElementById("debugPasswordInput");
+const debugPasswordSubmit = document.getElementById("debugPasswordSubmit");
+const debugPasswordError = document.getElementById("debugPasswordError");
+const debugModal = document.getElementById("debugModal");
+const debugCloseBtn = document.getElementById("debugCloseBtn");
+const debugPanel = document.getElementById("debugPanel");
+
+// 測試按鈕點擊
+if (debugBtn) {
+    debugBtn.addEventListener("click", () => {
+        isPaused = true;
+        if (debugPasswordModal) {
+            debugPasswordModal.classList.remove("hidden");
+            if (debugPasswordInput) {
+                debugPasswordInput.value = "";
+                debugPasswordInput.focus();
+            }
+            if (debugPasswordError) {
+                debugPasswordError.style.display = "none";
+            }
+        }
+    });
+}
+
+// 密碼輸入框關閉按鈕
+if (debugPasswordCloseBtn) {
+    debugPasswordCloseBtn.addEventListener("click", () => {
+        if (debugPasswordModal) {
+            debugPasswordModal.classList.add("hidden");
+        }
+        if (!isGameOver && isPaused) {
+            startCountdown();
+        }
+    });
+}
+
+// 密碼確認按鈕
+if (debugPasswordSubmit) {
+    debugPasswordSubmit.addEventListener("click", () => {
+        const password = debugPasswordInput ? debugPasswordInput.value : "";
+        if (password === DEBUG_PASSWORD) {
+            // 密碼正確，關閉密碼輸入框，打開修改視窗
+            if (debugPasswordModal) {
+                debugPasswordModal.classList.add("hidden");
+            }
+            if (debugModal) {
+                debugModal.classList.remove("hidden");
+                renderDebugPanel();
+            }
+        } else {
+            // 密碼錯誤
+            if (debugPasswordError) {
+                debugPasswordError.style.display = "block";
+            }
+        }
+    });
+}
+
+// 密碼輸入框按下 Enter 鍵
+if (debugPasswordInput) {
+    debugPasswordInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            if (debugPasswordSubmit) {
+                debugPasswordSubmit.click();
+            }
+        }
+    });
+}
+
+// 修改視窗關閉按鈕
+if (debugCloseBtn) {
+    debugCloseBtn.addEventListener("click", () => {
+        if (debugModal) {
+            debugModal.classList.add("hidden");
+        }
+        if (!isGameOver && isPaused) {
+            startCountdown();
+        }
+    });
+}
+
+// 計算總能力等級數（用於同步玩家等級）
+function getTotalUpgradeLevels() {
+    let total = 0;
+    Object.keys(upgradeLevels).forEach(role => {
+        Object.keys(upgradeLevels[role]).forEach(key => {
+            total += upgradeLevels[role][key] || 0;
+        });
+    });
+    return total;
+}
+
+// 同步玩家等級與能力等級
+function syncPlayerLevelWithUpgrades() {
+    if (!window.UPGRADE_CONFIG) return;
+    
+    const totalUpgradeLevels = getTotalUpgradeLevels();
+    const config = window.UPGRADE_CONFIG.leveling;
+    
+    // 玩家等級應該至少等於總能力等級（每次升級可以選一次）
+    // 但我們可以讓玩家等級稍微高一點，以反映遊戲進度
+    const targetPlayerLevel = Math.max(1, totalUpgradeLevels);
+    
+    // 如果目標等級高於當前等級，更新玩家等級和經驗值
+    if (targetPlayerLevel > playerLevelValue) {
+        playerLevelValue = targetPlayerLevel;
+        if (playerLevelValue > maxLevelThisRun) {
+            maxLevelThisRun = playerLevelValue;
+        }
+        
+        // 計算當前等級所需的經驗值，並設置為接近升級但未升級的狀態
+        // 這樣玩家可以通過擊殺怪物來升級
+        const requiredExp = Math.floor(config.baseExp * Math.pow(playerLevelValue, config.expMultiplier));
+        playerExp = Math.floor(requiredExp * 0.9); // 設置為 90%，讓玩家可以通過擊殺來升級
+    } else if (targetPlayerLevel < playerLevelValue) {
+        // 如果能力等級減少，也相應減少玩家等級
+        playerLevelValue = Math.max(1, targetPlayerLevel);
+        const requiredExp = Math.floor(config.baseExp * Math.pow(playerLevelValue, config.expMultiplier));
+        playerExp = Math.floor(requiredExp * 0.9);
+    }
+    
+    // 更新 UI
+    updateLevelUI();
+}
+
+// 渲染測試修改面板
+function renderDebugPanel() {
+    if (!debugPanel || !window.UPGRADE_CONFIG) return;
+    
+    const config = window.UPGRADE_CONFIG.upgrades;
+    const abilityTypeLimit = window.UPGRADE_CONFIG.abilityTypeLimit || 10;
+    const isAtLimit = unlockedAbilityTypes.size >= abilityTypeLimit;
+    
+    let html = "";
+    
+    Object.keys(config).forEach(role => {
+        Object.keys(config[role]).forEach(key => {
+            const upgrade = config[role][key];
+            const currentLevel = upgradeLevels[role][key];
+            const abilityTypeKey = `${role}.${key}`;
+            const isUnlocked = unlockedAbilityTypes.has(abilityTypeKey);
+            const isDisabled = !isUnlocked && isAtLimit;
+            
+            const roleNames = {
+                mage: "法師",
+                archer: "弓箭手",
+                knight: "騎士",
+                leader: "隊長"
+            };
+            
+            html += `
+                <div class="debug-item ${isDisabled ? 'disabled' : ''}" data-role="${role}" data-key="${key}">
+                    <div class="debug-item-info">
+                        <div class="debug-item-name">${roleNames[role]} - ${upgrade.name}</div>
+                        <div class="debug-item-desc">${upgrade.description.replace("{value}", Math.abs(upgrade.increment || 0)).replace("{damage}", upgrade.damageIncrement || 0)} (最大 Lv${upgrade.maxLevel})</div>
+                    </div>
+                    <div class="debug-item-controls">
+                        <button class="debug-btn-control debug-decrease" data-role="${role}" data-key="${key}">−</button>
+                        <span class="debug-level-display">Lv ${currentLevel}</span>
+                        <button class="debug-btn-control debug-increase" data-role="${role}" data-key="${key}">+</button>
+                    </div>
+                </div>
+            `;
+        });
+    });
+    
+    debugPanel.innerHTML = html;
+    
+    // 綁定加減按鈕事件
+    const decreaseBtns = debugPanel.querySelectorAll(".debug-decrease");
+    const increaseBtns = debugPanel.querySelectorAll(".debug-increase");
+    
+    decreaseBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            const role = btn.getAttribute("data-role");
+            const key = btn.getAttribute("data-key");
+            if (upgradeLevels[role][key] > 0) {
+                const abilityTypeKey = `${role}.${key}`;
+                const wasUnlocked = unlockedAbilityTypes.has(abilityTypeKey);
+                
+                upgradeLevels[role][key]--;
+                
+                // 如果減到 0，從已解鎖列表中移除
+                if (upgradeLevels[role][key] === 0 && wasUnlocked) {
+                    unlockedAbilityTypes.delete(abilityTypeKey);
+                    updateAbilityTypeUI();
+                }
+                
+                // 同步更新玩家等級
+                syncPlayerLevelWithUpgrades();
+                
+                renderDebugPanel(); // 重新渲染
+            }
+        });
+    });
+    
+    increaseBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            const role = btn.getAttribute("data-role");
+            const key = btn.getAttribute("data-key");
+            const upgrade = config[role][key];
+            const abilityTypeKey = `${role}.${key}`;
+            const isUnlocked = unlockedAbilityTypes.has(abilityTypeKey);
+            
+            // 檢查是否可以增加
+            if (!isUnlocked && isAtLimit) {
+                return; // 達到能力類型上限，不能解鎖新能力
+            }
+            
+            if (upgradeLevels[role][key] < upgrade.maxLevel) {
+                upgradeLevels[role][key]++;
+                
+                // 如果是第一次升級，加入已解鎖列表
+                if (upgradeLevels[role][key] === 1 && !isUnlocked) {
+                    unlockedAbilityTypes.add(abilityTypeKey);
+                    updateAbilityTypeUI();
+                }
+                
+                // 同步更新玩家等級
+                syncPlayerLevelWithUpgrades();
+                
+                renderDebugPanel(); // 重新渲染
+            }
+        });
     });
 }
 

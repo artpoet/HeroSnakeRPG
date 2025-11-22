@@ -55,6 +55,22 @@ window.UPGRADE_CONFIG = {
         maxLevel: 5,
         icon: "mage.png",
       },
+      scaleBonus: {
+        name: "縮放效果",
+        description: "法師縮放百分比 +{value}%（每兩秒一個縮放循環）",
+        baseValue: 0,       // 基礎值（0 表示沒有縮放）
+        increment: 10,      // 每次升級增加 10%
+        maxLevel: 5,
+        icon: "mage.png",
+      },
+      slowAura: {
+        name: "降速光環",
+        description: "光圈內的敵人速度 -{value}%",
+        baseValue: 0,       // 基礎值（0 表示沒有降速）
+        increment: 12,      // 每次升級減少 12% 速度
+        maxLevel: 5,
+        icon: "mage.png",
+      },
     },
 
     // 弓箭手升級
@@ -64,7 +80,7 @@ window.UPGRADE_CONFIG = {
         description: "每次攻擊發射箭矢數量 +{value}",
         baseValue: 1,       // 基礎數量
         increment: 1,       // 每次升級增加的值
-        maxLevel: 3,
+        maxLevel: 5,        // 等級上限從 3 上修為 5
         icon: "archer.png",
       },
       arrowSpeed: {
@@ -72,6 +88,23 @@ window.UPGRADE_CONFIG = {
         description: "箭矢飛行速度 +{value}，射擊頻率提升",
         baseValue: 5,       // 基礎速度（PROJECTILE_SPEED）
         increment: 1,       // 每次升級增加的值
+        maxLevel: 8,        // 等級上限從 10 下修為 8
+        icon: "archer.png",
+      },
+      explosion: {
+        name: "箭矢爆炸",
+        description: "命中怪物後爆炸範圍 +{value} 像素，傷害 +{damage}",
+        baseValue: 0,       // 基礎值（0 表示沒有爆炸）
+        increment: 20,      // 每次升級增加 20 像素範圍（從 10 加倍）
+        damageIncrement: 5, // 每次升級增加 5 點傷害
+        maxLevel: 5,
+        icon: "archer.png",
+      },
+      critical: {
+        name: "必殺",
+        description: "{value}% 發動攻擊兩倍的致命一擊",
+        baseValue: 0,       // 基礎值（0 表示沒有必殺）
+        increment: 5,       // 每次升級增加 5% 機率
         maxLevel: 10,
         icon: "archer.png",
       },
@@ -93,6 +126,23 @@ window.UPGRADE_CONFIG = {
         baseValue: 0,       // 基礎值（0 表示沒有加成）
         increment: 1,       // 每次升級增加的值
         maxLevel: 3,
+        icon: "knight.png",
+      },
+      explosion: {
+        name: "死亡爆炸",
+        description: "騎士死亡時爆炸範圍 +{value} 像素，傷害 +{damage}",
+        baseValue: 0,       // 基礎值（0 表示沒有爆炸）
+        increment: 30,      // 每次升級增加 30 像素範圍
+        damageIncrement: 10, // 每次升級增加 10 點傷害
+        maxLevel: 8,
+        icon: "knight.png",
+      },
+      invincibility: {
+        name: "無敵",
+        description: "死亡後 {value} 秒內所有我方角色對敵人攻擊無敵",
+        baseValue: 0,       // 基礎值（0 表示沒有無敵）
+        increment: 1,       // 每次升級增加 1 秒
+        maxLevel: 5,
         icon: "knight.png",
       },
     },
@@ -131,5 +181,9 @@ window.UPGRADE_CONFIG = {
   maxedOutBonus: {
     hpIncrease: 1,  // 每次升級增加的最大 HP
   },
+
+  // ========== 能力類型限制 ==========
+  // 每輪遊戲最多可選十種能力類型
+  abilityTypeLimit: 10,  // 能力類型上限
 };
 

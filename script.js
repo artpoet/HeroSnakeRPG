@@ -38,6 +38,17 @@ const minimapCtx = minimapCanvas ? minimapCanvas.getContext("2d") : null;
 const WORLD_WIDTH_PX = WORLD_WIDTH_GRIDS * GRID_SIZE;
 const WORLD_HEIGHT_PX = WORLD_HEIGHT_GRIDS * GRID_SIZE;
 
+// 遊戲縮放比例 (手機版視野拉遠)
+let GAME_SCALE = 1.0;
+function updateGameScale() {
+    // 當螢幕寬度小於 768px (平板/手機) 時，縮小畫面 (拉遠視野)
+    // 0.75 表示視野範圍擴大約 33%
+    GAME_SCALE = window.innerWidth < 768 ? 0.75 : 1.0;
+}
+// 初始化並監聽視窗大小變化
+updateGameScale();
+window.addEventListener('resize', updateGameScale);
+
 // Camera 物件
 const camera = {
   x: 0,
@@ -47,6 +58,10 @@ const camera = {
   
   // 更新 Camera 位置，使其跟隨目標 (targetX, targetY 是像素座標)
   update(targetX, targetY) {
+    // 考慮縮放比例計算可視範圍
+    this.width = canvas.width / GAME_SCALE;
+    this.height = canvas.height / GAME_SCALE;
+
     // 讓目標位於畫面中心
     this.x = targetX - this.width / 2;
     this.y = targetY - this.height / 2;
@@ -1992,6 +2007,8 @@ function draw() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   
   ctx.save();
+  // 應用全局縮放 (手機版拉遠視野)
+  ctx.scale(GAME_SCALE, GAME_SCALE);
   
   // 2. 繪製網格背景 (世界座標 -> 螢幕座標)
   // 優化：只繪製 Camera 視野內的網格
@@ -2001,18 +2018,18 @@ function draw() {
   const endRow = startRow + Math.ceil(camera.height / GRID_SIZE) + 1;
   
   ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 1; // 縮放後線條會變細，如果需要保持粗細可以除以 GAME_SCALE
   ctx.beginPath();
   
   for (let c = startCol; c <= endCol; c++) {
       const x = c * GRID_SIZE - camera.x;
       ctx.moveTo(x, 0);
-      ctx.lineTo(x, canvas.height);
+      ctx.lineTo(x, camera.height);
   }
   for (let r = startRow; r <= endRow; r++) {
       const y = r * GRID_SIZE - camera.y;
       ctx.moveTo(0, y);
-      ctx.lineTo(canvas.width, y);
+      ctx.lineTo(camera.width, y);
   }
   ctx.stroke();
   
@@ -2451,9 +2468,12 @@ function draw() {
   effects = effects.filter(e => e.life > 0);
   
   // 8. 繪製滑動軌跡（觸控和滑鼠共用）(Screen Coordinates - 不受 Camera 影響)
-  drawTouchTrails();
+  // drawTouchTrails 移至 restore 之後，避免受到 scale 影響
   
   ctx.restore();
+  
+  // 繪製 UI 層 (Touch Trails)
+  drawTouchTrails();
   
   // 9. 繪製小地圖
   drawMinimap();

@@ -2043,8 +2043,8 @@ function draw() {
   items.forEach(item => {
   if (item) {
           const pos = camera.transform(item.x * GRID_SIZE, item.y * GRID_SIZE);
-          // 檢查是否在畫面內 (Culling)
-          if (pos.x > -GRID_SIZE && pos.x < canvas.width && pos.y > -GRID_SIZE && pos.y < canvas.height) {
+          // 檢查是否在畫面內 (Culling) - 使用 camera.width/height 確保縮放後邊界判斷正確
+          if (pos.x > -GRID_SIZE && pos.x < camera.width && pos.y > -GRID_SIZE && pos.y < camera.height) {
               ASSETS.item.draw(ctx, pos.x, pos.y, GRID_SIZE);
               
               // 繪製職業文字 (弓/法/騎)
@@ -2076,8 +2076,8 @@ function draw() {
   // 5. 繪製敵人
   enemies.forEach(e => {
       const pos = camera.transform(e.x - GRID_SIZE/2, e.y - GRID_SIZE/2);
-      // 檢查是否在畫面內 (Culling)
-      if (pos.x > -GRID_SIZE && pos.x < canvas.width && pos.y > -GRID_SIZE && pos.y < canvas.height) {
+      // 檢查是否在畫面內 (Culling) - 使用 camera.width/height 確保縮放後邊界判斷正確
+      if (pos.x > -GRID_SIZE && pos.x < camera.width && pos.y > -GRID_SIZE && pos.y < camera.height) {
           ctx.save();
           
           // 根據怪物等級使用對應的圖片（mob_1.png ~ mob_8.png）

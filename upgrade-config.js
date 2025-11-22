@@ -118,7 +118,7 @@ window.UPGRADE_CONFIG = {
       moveSpeed: {
         name: "移動速度",
         description: "隊長移動速度提升（移動間隔減少 {value} 毫秒）",
-        baseValue: 200,     // 基礎移動間隔（GAME_SPEED，毫秒）
+        baseValue: 120,     // 基礎移動間隔（GAME_SPEED，毫秒）- 與 index.html 中的 GAME_SPEED 保持一致
         increment: -15,     // 每次升級減少的值（負數表示減少間隔，即加快速度）
         maxLevel: 5,        // 最大等級 5
         icon: "leader.png",

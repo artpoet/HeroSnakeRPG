@@ -170,9 +170,9 @@ function createAsset(key, def) {
     if (img.decode) {
       // 使用現代瀏覽器的 decode() API
       img.decode().then(() => {
-        asset.decoded = true;
-        assetsLoaded++;
-        updateLoader();
+        // 即使 decode() 成功，也進行一次實際尺寸的預繪製
+        // 確保瀏覽器真正完成解碼（某些瀏覽器需要）
+        forceDecodeWithCanvas(img, asset);
       }).catch(() => {
         // 如果 decode() 失敗，使用離屏 Canvas 解碼
         decodeImageWithCanvas(img, asset);
@@ -192,21 +192,40 @@ function createAsset(key, def) {
   return asset;
 }
 
-// 使用離屏 Canvas 預先解碼圖片
+// 使用離屏 Canvas 預先解碼圖片（用於舊瀏覽器或不支援 decode() 的情況）
 function decodeImageWithCanvas(img, asset) {
+  forceDecodeWithCanvas(img, asset);
+}
+
+// 強制在實際尺寸下解碼圖片（通用函數）
+function forceDecodeWithCanvas(img, asset) {
   try {
-    // 創建一個小的離屏 Canvas 來強制解碼
+    // 使用實際圖片尺寸進行解碼，確保瀏覽器完全解碼圖片
+    // 這樣可以避免第一次繪製時的卡頓
     const offscreenCanvas = document.createElement('canvas');
-    offscreenCanvas.width = Math.min(img.width || 32, 32);
-    offscreenCanvas.height = Math.min(img.height || 32, 32);
+    offscreenCanvas.width = img.width || GRID_SIZE;
+    offscreenCanvas.height = img.height || GRID_SIZE;
     const offscreenCtx = offscreenCanvas.getContext('2d');
     
     // 繪製圖片到離屏 Canvas，強制瀏覽器解碼
     offscreenCtx.drawImage(img, 0, 0, offscreenCanvas.width, offscreenCanvas.height);
     
-    asset.decoded = true;
-    assetsLoaded++;
-    updateLoader();
+    // 使用 requestAnimationFrame 確保解碼完成
+    // 這讓瀏覽器有時間真正完成圖片解碼
+    requestAnimationFrame(() => {
+      // 再次繪製一次，確保解碼完成（某些瀏覽器需要）
+      try {
+        offscreenCtx.drawImage(img, 0, 0, offscreenCanvas.width, offscreenCanvas.height);
+        // 讀取像素數據，強制完成解碼
+        offscreenCtx.getImageData(0, 0, 1, 1);
+      } catch (e) {
+        // 忽略錯誤，繼續標記為已解碼
+      }
+      
+      asset.decoded = true;
+      assetsLoaded++;
+      updateLoader();
+    });
   } catch (e) {
     // 如果解碼失敗，仍然標記為已載入
     asset.decoded = true;
@@ -685,6 +704,11 @@ function gameLoop(timestamp) {
               s.bounceVy *= 0.95; // 更快衰減
               if (Math.abs(s.bounceVy) < 0.001) s.bounceVy = 0;
           }
+          
+          // 限制 renderX/Y 在邊界內，避免在邊界附近時視覺不協調
+          // 這確保 Camera 的邊界限制和玩家的視覺位置保持一致
+          s.renderX = Math.max(0, Math.min(s.renderX, WORLD_WIDTH_GRIDS - 1));
+          s.renderY = Math.max(0, Math.min(s.renderY, WORLD_HEIGHT_GRIDS - 1));
       }
   });
   
@@ -812,58 +836,56 @@ function updateEnemies(target) {
                     // 其他隊員撞到敵人：處理騎士守護邏輯
                     // 尋找第一個騎士（除了被撞的隊員）
                     let knightFound = false;
-                    for (let knightIdx = 0; knightIdx < snake.length && !knightFound; knightIdx++) {
-                        if (knightIdx === index) continue; // 跳過被撞的隊員
-                        
+                    // 使用 findIndex 找到騎士索引，避免索引問題
+                    const knightIdx = snake.findIndex((seg, idx) => idx !== index && seg.role === "knight");
+                    
+                    if (knightIdx !== -1) {
+                        knightFound = true;
                         const knightSeg = snake[knightIdx];
-                        if (knightSeg.role === "knight") {
-                            knightFound = true;
+                        
+                        // 初始化或獲取騎士的 hitPoints
+                        if (!knightSeg.hitPoints || knightSeg.hitPoints === undefined) {
+                            knightSeg.hitPoints = getKnightHitPoints();
+                        }
+                        
+                        // 減少騎士的 hitPoints
+                        knightSeg.hitPoints--;
+                        
+                        // 為被撞的隊員添加受傷閃爍效果（深紅色）
+                        s.hitTimer = 10; // 閃爍 10 幀
+                        
+                        // 如果騎士的 hitPoints 歸零，移除騎士
+                        if (knightSeg.hitPoints <= 0) {
+                            snake.splice(knightIdx, 1);
+                            scoreValue.textContent = snake.length;
                             
-                            // 初始化或獲取騎士的 hitPoints
-                            if (!knightSeg.hitPoints) {
-                                knightSeg.hitPoints = getKnightHitPoints();
-                            }
-                            
-                            // 減少騎士的 hitPoints
-                            knightSeg.hitPoints--;
-                            
-                            // 為被撞的隊員添加受傷閃爍效果（深紅色）
-                            s.hitTimer = 10; // 閃爍 10 幀
-                            
-                            // 如果騎士的 hitPoints 歸零，移除騎士
-                            if (knightSeg.hitPoints <= 0) {
-                                snake.splice(knightIdx, 1);
-                                scoreValue.textContent = snake.length;
-                                
-                                // 騎士死亡獎勵：增加隊伍長度
-                                const deathBonus = getUpgradedValue("knight", "deathBonus", 0);
-                                if (deathBonus > 0) {
-                                    const tail = snake[snake.length - 1];
-                                    const types = ["archer", "mage", "knight"];
-                                    for (let i = 0; i < deathBonus; i++) {
-                                        const newRole = types[Math.floor(Math.random() * types.length)];
-                                        const newSegment = {
-                                            x: tail.x,
-                                            y: tail.y,
-                                            renderX: tail.x,
-                                            renderY: tail.y,
-                                            targetRenderX: tail.x,
-                                            targetRenderY: tail.y,
-                                            role: newRole,
-                                            facing: tail.facing,
-                                            id: Date.now() + i,
-                                            lastShot: 0
-                                        };
-                                        // 如果是騎士，初始化 hitPoints
-                                        if (newRole === "knight") {
-                                            newSegment.hitPoints = getKnightHitPoints();
-                                        }
-                                        snake.push(newSegment);
+                            // 騎士死亡獎勵：增加隊伍長度
+                            const deathBonus = getUpgradedValue("knight", "deathBonus", 0);
+                            if (deathBonus > 0) {
+                                const tail = snake[snake.length - 1];
+                                const types = ["archer", "mage", "knight"];
+                                for (let i = 0; i < deathBonus; i++) {
+                                    const newRole = types[Math.floor(Math.random() * types.length)];
+                                    const newSegment = {
+                                        x: tail.x,
+                                        y: tail.y,
+                                        renderX: tail.x,
+                                        renderY: tail.y,
+                                        targetRenderX: tail.x,
+                                        targetRenderY: tail.y,
+                                        role: newRole,
+                                        facing: tail.facing,
+                                        id: Date.now() + i,
+                                        lastShot: 0
+                                    };
+                                    // 如果是騎士，初始化 hitPoints
+                                    if (newRole === "knight") {
+                                        newSegment.hitPoints = getKnightHitPoints();
                                     }
-                                    scoreValue.textContent = snake.length;
+                                    snake.push(newSegment);
                                 }
+                                scoreValue.textContent = snake.length;
                             }
-                            break; // 只處理第一個找到的騎士
                         }
                     }
                     
@@ -1258,16 +1280,13 @@ function handleMageAura(timestamp) {
             }
         });
         
-        // 添加光環視覺特效
-        // 如果有敵人在範圍內，光環會發光（更亮）
-        effects.push({
-            type: "aura",
+        // 將光環資訊存儲在 segment 上，用於繪製（不通過 effects 陣列，避免效能問題）
+        segment.auraInfo = {
             x: mageCenter.x,
             y: mageCenter.y,
             radius: auraRadius,
-            alpha: hasEnemyInRange ? 0.6 : 0.2, // 有敵人時更亮
-            life: 2 // 持續 2 幀，確保可見
-        });
+            hasEnemy: hasEnemyInRange
+        };
     });
 }
 
@@ -1444,7 +1463,34 @@ function draw() {
       const assetKey = s.role;
       
       if (ASSETS[assetKey]) {
+          // 如果是騎士，根據剩餘 hitPoints 百分比設置透明度
+          let knightAlpha = 1.0;
+          if (s.role === "knight") {
+              // 確保 hitPoints 已初始化
+              if (s.hitPoints === undefined || s.hitPoints === null) {
+                  s.hitPoints = getKnightHitPoints();
+              }
+              
+              // 計算剩餘百分比：hitPoints / maxHitPoints
+              const maxHitPoints = getKnightHitPoints();
+              if (s.hitPoints <= 0) {
+                  // 如果 hitPoints 已歸零，非常透明（接近死亡）
+                  knightAlpha = 0.3;
+              } else {
+                  // 計算剩餘百分比
+                  const hitPointsPercent = s.hitPoints / maxHitPoints;
+                  // 透明度：100% 時完全不透明，0% 時 30% 透明（70% 可見）
+                  // 公式：alpha = 0.3 + (hitPointsPercent * 0.7)
+                  knightAlpha = 0.3 + (hitPointsPercent * 0.7);
+                  // 確保透明度在合理範圍內
+                  knightAlpha = Math.max(0.3, Math.min(1.0, knightAlpha));
+              }
+          }
+          
+          ctx.save();
+          ctx.globalAlpha = knightAlpha;
           ASSETS[assetKey].draw(ctx, pos.x, pos.y, GRID_SIZE, s.facing);
+          ctx.restore();
           
           // 如果正在受傷閃爍，用深紅色覆蓋（hitTimer 已在邏輯更新階段更新）
           if (s.hitTimer !== undefined && s.hitTimer > 0) {
@@ -1454,6 +1500,25 @@ function draw() {
               ctx.fillRect(pos.x, pos.y, GRID_SIZE, GRID_SIZE);
               ctx.globalAlpha = 1;
               ctx.restore();
+          }
+          
+          // 繪製法師光環（直接繪製，不通過 effects 陣列，提升效能）
+          if (s.role === "mage" && s.auraInfo) {
+              const auraPos = camera.transform(s.auraInfo.x, s.auraInfo.y);
+              // 檢查是否在畫面內（加上光環半徑的緩衝）
+              const auraRadius = s.auraInfo.radius;
+              if (auraPos.x > -auraRadius && auraPos.x < canvas.width + auraRadius && 
+                  auraPos.y > -auraRadius && auraPos.y < canvas.height + auraRadius) {
+                  ctx.save();
+                  const isActive = s.auraInfo.hasEnemy;
+                  ctx.globalAlpha = isActive ? 0.6 : 0.2; // 有敵人時更亮
+                  ctx.strokeStyle = isActive ? "#93c5fd" : "#60a5fa"; // 有敵人時更亮的藍色
+                  ctx.lineWidth = isActive ? 4 : 2; // 有敵人時線條更粗
+                  ctx.beginPath();
+                  ctx.arc(auraPos.x, auraPos.y, auraRadius, 0, Math.PI * 2);
+                  ctx.stroke();
+                  ctx.restore();
+              }
           }
       }
       
@@ -1488,15 +1553,8 @@ function draw() {
           ctx.fillText(e.text, pos.x, pos.y - (30 - e.life)); // 向上飄
           e.life--;
       } else if (e.type === "aura") {
-          // 法師光環特效
-          // 根據 alpha 判斷是否有敵人在範圍內（alpha > 0.4 表示有敵人）
-          const isActive = e.alpha > 0.4;
-          ctx.globalAlpha = e.alpha;
-          ctx.strokeStyle = isActive ? "#93c5fd" : "#60a5fa"; // 有敵人時更亮的藍色
-          ctx.lineWidth = isActive ? 4 : 2; // 有敵人時線條更粗
-          ctx.beginPath();
-          ctx.arc(pos.x, pos.y, e.radius, 0, Math.PI * 2);
-          ctx.stroke();
+          // 法師光環特效（已移除，改為直接繪製）
+          // 這個分支現在不會被執行，但保留以防萬一
           e.life--;
       } else if (e.type === "kill") {
           // 擊殺特效

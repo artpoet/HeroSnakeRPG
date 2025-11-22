@@ -110,7 +110,9 @@
               <div class="top-controls">
                   <button id="leaderboardBtn" class="control-btn" title="排行榜">📊</button>
                   <button id="guideBtn" class="control-btn" title="遊戲說明">❓</button>
-                  <span id="abilityTypeText" class="ability-type-text">能力類型: 0/10</span>
+                  <span id="abilityTypeText" class="ability-type-text" title="點擊查看能力詳情">
+                    <span style="margin-right: 6px;">📋</span> 能力類型: 0/8
+                  </span>
                   <button id="debugBtn" class="control-btn debug-btn" title="測試修改">🔧</button>
               </div>
           </div>
@@ -277,6 +279,21 @@
         </div>
         <div class="modal-body">
           <div id="debugPanel" class="debug-panel">
+            <!-- 內容將由 JavaScript 動態生成 -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 目前能力 Modal -->
+    <div id="currentAbilitiesModal" class="modal hidden">
+      <div class="modal-content abilities-content">
+        <div class="modal-header">
+          <h2>目前能力</h2>
+          <button class="modal-close" id="currentAbilitiesCloseBtn">×</button>
+        </div>
+        <div class="modal-body">
+          <div id="currentAbilitiesList" class="abilities-list">
             <!-- 內容將由 JavaScript 動態生成 -->
           </div>
         </div>

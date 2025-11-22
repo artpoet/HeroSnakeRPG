@@ -195,12 +195,103 @@ canvas#minimap {
 
 .ability-type-text {
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: #e2e8f0; /* 更亮的文字顏色 */
   margin-left: 8px;
   white-space: nowrap;
   display: flex;
   align-items: center;
   flex: 1;
+  background: linear-gradient(to bottom, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95)); /* 漸層背景 */
+  padding: 6px 12px; /* 增加 padding */
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.2); /* 跟左邊按鈕一樣粗細的灰色邊框 */
+  cursor: pointer;
+  transition: all 0.2s;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); /* 跟左邊按鈕一樣的陰影 */
+}
+
+.ability-type-text:hover {
+  background: linear-gradient(to bottom, rgba(51, 65, 85, 0.9), rgba(30, 41, 59, 0.95));
+  color: #4ade80;
+  border-color: rgba(255, 255, 255, 0.3); /* hover 時稍微亮一點的灰色 */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); /* 更明顯的陰影，保持凸起感 */
+  transform: translateY(-1px); /* 懸停時輕微上浮 */
+}
+
+.ability-type-text:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* 目前能力列表樣式 */
+.abilities-content {
+  max-width: 500px;
+}
+
+.abilities-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.ability-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.ability-item-icon {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  background: rgba(0,0,0,0.3);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.ability-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.ability-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.ability-item-name {
+  font-weight: bold;
+  color: #f1f5f9;
+  font-size: 0.95rem;
+}
+
+.ability-item-level {
+  font-size: 0.75rem;
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.ability-item-desc {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.empty-abilities {
+  text-align: center;
+  color: #64748b;
+  padding: 20px;
+  font-style: italic;
 }
 
 .debug-btn {

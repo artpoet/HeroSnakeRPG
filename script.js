@@ -1,5 +1,5 @@
 // 遊戲版本號
-const GAME_VERSION = "1.1.1";
+const GAME_VERSION = "1.2.1";
 
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
@@ -26,8 +26,12 @@ const guideBtn = document.getElementById("guideBtn");
 const leaderboardModal = document.getElementById("leaderboardModal");
 const guideModal = document.getElementById("guideModal");
 const pauseModal = document.getElementById("pauseModal");
+const currentAbilitiesModal = document.getElementById("currentAbilitiesModal");
 const countdownOverlay = document.getElementById("countdownOverlay");
 const countdownNumber = document.getElementById("countdownNumber");
+
+// Ability Text
+const abilityTypeText = document.getElementById("abilityTypeText");
 
 // Minimap
 const minimapCanvas = document.getElementById("minimap");
@@ -1682,7 +1686,19 @@ function updateAbilityTypeUI() {
     const abilityTypeText = document.getElementById("abilityTypeText");
     if (abilityTypeText) {
         const limit = window.UPGRADE_CONFIG?.abilityTypeLimit || 10;
-        abilityTypeText.textContent = `能力類型: ${unlockedAbilityTypes.size}/${limit}`;
+        abilityTypeText.innerHTML = `<span style="margin-right: 6px;">📋</span> 能力類型: ${unlockedAbilityTypes.size}/${limit}`;
+        
+        // 根據數量變色
+        if (unlockedAbilityTypes.size >= limit) {
+            abilityTypeText.style.color = "#ef4444"; // 紅色警告
+            abilityTypeText.style.borderColor = "rgba(239, 68, 68, 0.4)"; // 紅色邊框，保持 2px 粗細
+        } else if (unlockedAbilityTypes.size >= limit - 2) {
+            abilityTypeText.style.color = "#f59e0b"; // 黃色提醒
+            abilityTypeText.style.borderColor = "rgba(245, 158, 11, 0.4)"; // 黃色邊框，保持 2px 粗細
+        } else {
+            abilityTypeText.style.color = "#e2e8f0"; // 恢復預設
+            abilityTypeText.style.borderColor = "rgba(255, 255, 255, 0.2)"; // 跟左邊按鈕一樣的灰色邊框
+        }
     }
 }
 
@@ -3245,6 +3261,130 @@ if (debugCloseBtn) {
     debugCloseBtn.addEventListener("click", () => {
         if (debugModal) {
             debugModal.classList.add("hidden");
+        }
+        if (!isGameOver && isPaused) {
+            startCountdown();
+        }
+    });
+}
+
+// 顯示目前能力
+function showCurrentAbilities() {
+    if (!currentAbilitiesModal) return;
+    
+    const list = document.getElementById("currentAbilitiesList");
+    if (!list) return;
+    
+    list.innerHTML = "";
+    
+    const activeAbilities = [];
+    
+    if (window.UPGRADE_CONFIG && window.UPGRADE_CONFIG.upgrades) {
+        Object.keys(window.UPGRADE_CONFIG.upgrades).forEach(role => {
+            Object.keys(window.UPGRADE_CONFIG.upgrades[role]).forEach(key => {
+                const level = upgradeLevels[role][key] || 0;
+                if (level > 0) {
+                    activeAbilities.push({
+                        role,
+                        key,
+                        level,
+                        config: window.UPGRADE_CONFIG.upgrades[role][key]
+                    });
+                }
+            });
+        });
+    }
+    
+    if (activeAbilities.length === 0) {
+        list.innerHTML = '<div class="empty-abilities">尚未獲得任何能力</div>';
+    } else {
+        activeAbilities.forEach(ability => {
+            const item = document.createElement("div");
+            item.className = "ability-item";
+            
+            // 計算當前數值
+            const currentValue = getUpgradedValue(ability.role, ability.key, ability.config.baseValue || 0);
+            
+            // 處理說明文字
+            let descText = ability.config.description;
+            
+            // 特殊處理：移動速度顯示提升百分比
+            if (ability.key === "moveSpeed") {
+                const speedIncreasePercent = Math.abs(ability.config.increment * ability.level) / (ability.config.baseValue + ability.config.increment * ability.level) * 100;
+                // 這裡計算稍微不同，因為我們要顯示的是「相對於基礎值的提升」還是「當前提升量」
+                // 為了保持一致，我們顯示當前累計提升百分比
+                // 速度 = 1 / 間隔。基礎間隔 200。現在間隔 = 200 + (-15 * level)
+                // 提升百分比 = (現在間隔 - 基礎間隔) / 基礎間隔 * 100 (這是負的)
+                // 或者是 (1/現在間隔 - 1/基礎間隔) / (1/基礎間隔) * 100 (這是速度提升)
+                
+                const baseInterval = ability.config.baseValue;
+                const currentInterval = currentValue;
+                const speedUpPercent = (baseInterval / currentInterval - 1) * 100;
+                
+                const percentText = `<span style="color: #4ade80; font-weight: bold;">${speedUpPercent.toFixed(1)}%</span>`;
+                descText = `隊長移動速度提升 ${percentText}`;
+            } else {
+                // 特殊處理：maxHp 顯示增量而不是總值
+                let displayValue = currentValue;
+                
+                if (ability.role === "leader" && ability.key === "maxHp") {
+                    // 對於血量，顯示總增量
+                    displayValue = ability.config.increment * ability.level;
+                }
+                
+                if (descText.includes("+{value}")) {
+                    descText = descText.replace("+{value}", `<span style="color: #4ade80; font-weight: bold;">+${displayValue}</span>`);
+                } else if (descText.includes("-{value}")) {
+                    descText = descText.replace("-{value}", `<span style="color: #4ade80; font-weight: bold;">-${displayValue}</span>`);
+                } else {
+                    descText = descText.replace("{value}", `<span style="color: #4ade80; font-weight: bold;">${displayValue}</span>`);
+                }
+                
+                // 如果有 damageIncrement，也替換 {damage}
+                if (ability.config.damageIncrement !== undefined) {
+                    const currentDamage = ability.level * ability.config.damageIncrement;
+                    
+                    if (descText.includes("+{damage}")) {
+                         descText = descText.replace("+{damage}", `<span style="color: #4ade80; font-weight: bold;">+${currentDamage}</span>`);
+                    } else if (descText.includes("-{damage}")) {
+                         descText = descText.replace("-{damage}", `<span style="color: #4ade80; font-weight: bold;">-${currentDamage}</span>`);
+                    } else {
+                         descText = descText.replace("{damage}", `<span style="color: #4ade80; font-weight: bold;">${currentDamage}</span>`);
+                    }
+                }
+            }
+
+            const iconSrc = ability.config.icon || "item.png";
+            
+            item.innerHTML = `
+                <img src="${iconSrc}" class="ability-item-icon" alt="${ability.config.name}">
+                <div class="ability-item-info">
+                    <div class="ability-item-header">
+                        <div class="ability-item-name">${ability.config.name}</div>
+                        <div class="ability-item-level">Lv ${ability.level} / ${ability.config.maxLevel}</div>
+                    </div>
+                    <div class="ability-item-desc">${descText}</div>
+                </div>
+            `;
+            list.appendChild(item);
+        });
+    }
+    
+    currentAbilitiesModal.classList.remove("hidden");
+    isPaused = true;
+}
+
+// 能力類型文字點擊事件
+if (abilityTypeText) {
+    abilityTypeText.addEventListener("click", showCurrentAbilities);
+}
+
+// 目前能力 Modal 關閉按鈕
+const currentAbilitiesCloseBtn = document.getElementById("currentAbilitiesCloseBtn");
+if (currentAbilitiesCloseBtn) {
+    currentAbilitiesCloseBtn.addEventListener("click", () => {
+        if (currentAbilitiesModal) {
+            currentAbilitiesModal.classList.add("hidden");
         }
         if (!isGameOver && isPaused) {
             startCountdown();

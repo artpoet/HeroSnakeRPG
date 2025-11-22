@@ -525,6 +525,19 @@ function gameLoop(timestamp) {
   const t = Math.min((timestamp - lastMoveTime) / GAME_SPEED, 1);
   snake.forEach(s => {
       if (s.targetRenderX !== undefined) {
+          // 應用回彈速度（如果存在）
+          if (s.bounceVx !== undefined && s.bounceVx !== 0) {
+              s.renderX += s.bounceVx;
+              s.bounceVx *= 0.85; // 衰減係數
+              if (Math.abs(s.bounceVx) < 0.001) s.bounceVx = 0;
+          }
+          if (s.bounceVy !== undefined && s.bounceVy !== 0) {
+              s.renderY += s.bounceVy;
+              s.bounceVy *= 0.85; // 衰減係數
+              if (Math.abs(s.bounceVy) < 0.001) s.bounceVy = 0;
+          }
+          
+          // 平滑移動到目標位置
           s.renderX = s.renderX + (s.targetRenderX - s.renderX) * 0.2; // 簡單的 easing
           s.renderY = s.renderY + (s.targetRenderY - s.renderY) * 0.2;
           // 修正：非常接近時直接吸附
@@ -605,9 +618,29 @@ function updateEnemies(target) {
                         return;
                     }
                     
-                    // 推開敵人
-                    e.x -= Math.cos(angle) * 10;
-                    e.y -= Math.sin(angle) * 10;
+                    // 碰撞回彈：計算從敵人指向玩家的方向（碰撞方向）
+                    const dx = sx - e.x;
+                    const dy = sy - e.y;
+                    const collisionDist = Math.hypot(dx, dy);
+                    if (collisionDist > 0) {
+                        // 正規化方向向量
+                        const nx = dx / collisionDist;
+                        const ny = dy / collisionDist;
+                        
+                        // 回彈力度（像素）
+                        const bounceForce = 30;
+                        
+                        // 推開敵人（遠離玩家）
+                        e.x -= nx * bounceForce;
+                        e.y -= ny * bounceForce;
+                        
+                        // 為玩家添加視覺回彈偏移（不影響邏輯位置）
+                        // 使用回彈速度，在後續幀中逐漸衰減
+                        if (!s.bounceVx) s.bounceVx = 0;
+                        if (!s.bounceVy) s.bounceVy = 0;
+                        s.bounceVx = nx * bounceForce / GRID_SIZE * 0.5; // 轉換為網格單位並減半
+                        s.bounceVy = ny * bounceForce / GRID_SIZE * 0.5;
+                    }
                     
                     // 受傷特效
                     effects.push({

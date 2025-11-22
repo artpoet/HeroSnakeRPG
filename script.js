@@ -1521,23 +1521,67 @@ function createUpgradeOptionElement(option, index) {
     
     const desc = document.createElement("div");
     desc.className = "upgrade-option-desc";
-    // 對於負數 increment（如移動速度），顯示絕對值
-    const displayValue = Math.abs(option.upgrade.increment || 1);
-    let descText = option.upgrade.description.replace("{value}", displayValue);
-    // 如果有 damageIncrement，也替換 {damage}
-    if (option.upgrade.damageIncrement !== undefined) {
-        descText = descText.replace("{damage}", option.upgrade.damageIncrement);
-    }
-    desc.textContent = descText;
     
     const level = document.createElement("div");
     level.className = "upgrade-option-level";
+    
     if (option.isMaxed) {
         level.textContent = "Lv MAX";
         // 滿級時，描述改為隊長最大血量+1
         desc.textContent = "隊長最大血量 +1";
     } else {
         level.textContent = `Lv ${option.currentLevel} / ${option.upgrade.maxLevel}`;
+        
+        // 計算當前數值和升級後的數值
+        const currentValue = getUpgradedValue(option.role, option.key, option.upgrade.baseValue || 0);
+        const nextValue = currentValue + option.upgrade.increment;
+        
+        // 構建描述文字，顯示升級後的數值（綠色）
+        let descText = option.upgrade.description;
+        
+        // 特殊處理：移動速度顯示提升百分比
+        if (option.key === "moveSpeed") {
+            // 計算速度提升百分比
+            // 速度 = 1 / 間隔，所以提升百分比 = (當前間隔 - 升級後間隔) / 當前間隔 * 100
+            const speedIncreasePercent = Math.abs(option.upgrade.increment) / currentValue * 100;
+            const percentText = `<span style="color: #4ade80; font-weight: bold;">${speedIncreasePercent.toFixed(1)}%</span>`;
+            descText = `隊長移動速度提升 ${percentText}`;
+        } else {
+            // 替換 {value}：顯示升級後的數值（綠色），包含前面的加減符號
+            // 檢查 {value} 前面是否有 + 或 - 符號
+            if (descText.includes("+{value}")) {
+                const valueReplacement = `<span style="color: #4ade80; font-weight: bold;">+${nextValue}</span>`;
+                descText = descText.replace("+{value}", valueReplacement);
+            } else if (descText.includes("-{value}")) {
+                const valueReplacement = `<span style="color: #4ade80; font-weight: bold;">-${nextValue}</span>`;
+                descText = descText.replace("-{value}", valueReplacement);
+            } else {
+                const valueReplacement = `<span style="color: #4ade80; font-weight: bold;">${nextValue}</span>`;
+                descText = descText.replace("{value}", valueReplacement);
+            }
+            
+            // 如果有 damageIncrement，也替換 {damage}（包含前面的加減符號）
+            if (option.upgrade.damageIncrement !== undefined) {
+                // damageIncrement 是每次升級增加的傷害值
+                // 當前傷害 = 當前等級 * damageIncrement
+                // 升級後傷害 = (當前等級 + 1) * damageIncrement
+                const currentLevel = option.currentLevel || 0;
+                const nextDamage = (currentLevel + 1) * option.upgrade.damageIncrement;
+                
+                if (descText.includes("+{damage}")) {
+                    const damageReplacement = `<span style="color: #4ade80; font-weight: bold;">+${nextDamage}</span>`;
+                    descText = descText.replace("+{damage}", damageReplacement);
+                } else if (descText.includes("-{damage}")) {
+                    const damageReplacement = `<span style="color: #4ade80; font-weight: bold;">-${nextDamage}</span>`;
+                    descText = descText.replace("-{damage}", damageReplacement);
+                } else {
+                    const damageReplacement = `<span style="color: #4ade80; font-weight: bold;">${nextDamage}</span>`;
+                    descText = descText.replace("{damage}", damageReplacement);
+                }
+            }
+        }
+        
+        desc.innerHTML = descText;
     }
     
     info.appendChild(name);

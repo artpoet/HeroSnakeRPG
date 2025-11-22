@@ -99,7 +99,7 @@ let upgradeLevels = {
   mage: { auraRange: 0, auraDamage: 0 },
   archer: { arrowCount: 0, arrowSpeed: 0 },
   knight: { hitPoints: 0, deathBonus: 0 },
-  leader: { maxHp: 0, damage: 0 },
+  leader: { maxHp: 0, damage: 0, moveSpeed: 0 },
 };
 
 // 資源載入
@@ -322,7 +322,7 @@ function startGame() {
     mage: { auraRange: 0, auraDamage: 0 },
     archer: { arrowCount: 0, arrowSpeed: 0 },
     knight: { hitPoints: 0, deathBonus: 0 },
-    leader: { maxHp: 0, damage: 0 },
+    leader: { maxHp: 0, damage: 0, moveSpeed: 0 },
   };
   leaderHP = getLeaderMaxHp();
 
@@ -429,6 +429,11 @@ function getUpgradedValue(role, key, defaultVal) {
 }
 function getLeaderMaxHp() { return getUpgradedValue("leader", "maxHp", 150); }
 
+// 獲取當前移動速度（考慮升級）
+function getCurrentMoveSpeed() {
+  return getUpgradedValue("leader", "moveSpeed", GAME_SPEED);
+}
+
 function moveSnake(timestamp) {
   direction = nextDirection;
   
@@ -477,10 +482,12 @@ function moveSnake(timestamp) {
   head.y = nextY;
   head.facing = facing;
   
-  // 重置 Render 位置為舊位置 (準備開始 Lerp)
+  // 更新目標位置，並記錄起始位置用於線性插值
   snake.forEach((s, i) => {
-      s.renderX = prevPositions[i].x;
-      s.renderY = prevPositions[i].y;
+      // 記錄插值起始位置（當前的 renderX/Y）
+      s.startRenderX = s.renderX;
+      s.startRenderY = s.renderY;
+      // 設置新的目標位置
       s.targetRenderX = s.x;
       s.targetRenderY = s.y;
   });
@@ -541,9 +548,10 @@ function gameLoop(timestamp) {
       return;
   }
 
-  // 邏輯更新頻率控制
+  // 邏輯更新頻率控制（使用升級後的移動速度）
   if (!lastMoveTime) lastMoveTime = timestamp;
-  if (timestamp - lastMoveTime >= GAME_SPEED) {
+  const currentMoveSpeed = getCurrentMoveSpeed();
+  if (timestamp - lastMoveTime >= currentMoveSpeed) {
     moveSnake(timestamp);
     lastMoveTime = timestamp;
   }
@@ -555,28 +563,36 @@ function gameLoop(timestamp) {
       lastEnemySpawn = timestamp;
   }
   
-  // Lerp 平滑移動
-  const t = Math.min((timestamp - lastMoveTime) / GAME_SPEED, 1);
+  // 更新我方單位的受傷閃爍計時器（在邏輯更新階段，不在繪製階段）
   snake.forEach(s => {
-      if (s.targetRenderX !== undefined) {
-          // 應用回彈速度（如果存在）
+      if (s.hitTimer !== undefined && s.hitTimer > 0) {
+          s.hitTimer--;
+      }
+  });
+  
+  // Lerp 平滑移動（每幀執行，讓移動更流暢）
+  // 使用線性插值：根據經過的時間百分比直接計算位置
+  const timeSinceMove = timestamp - lastMoveTime;
+  const moveProgress = Math.min(timeSinceMove / currentMoveSpeed, 1); // 0.0 到 1.0
+  
+  snake.forEach(s => {
+      if (s.targetRenderX !== undefined && s.startRenderX !== undefined) {
+          // 使用線性插值：從起始位置到目標位置
+          // 不使用指數衰減，而是直接根據時間進度計算位置
+          s.renderX = s.startRenderX + (s.targetRenderX - s.startRenderX) * moveProgress;
+          s.renderY = s.startRenderY + (s.targetRenderY - s.startRenderY) * moveProgress;
+          
+          // 應用回彈速度（如果存在）- 回彈效果疊加在平滑移動上
           if (s.bounceVx !== undefined && s.bounceVx !== 0) {
               s.renderX += s.bounceVx;
-              s.bounceVx *= 0.85; // 衰減係數
+              s.bounceVx *= 0.95; // 更快衰減
               if (Math.abs(s.bounceVx) < 0.001) s.bounceVx = 0;
           }
           if (s.bounceVy !== undefined && s.bounceVy !== 0) {
               s.renderY += s.bounceVy;
-              s.bounceVy *= 0.85; // 衰減係數
+              s.bounceVy *= 0.95; // 更快衰減
               if (Math.abs(s.bounceVy) < 0.001) s.bounceVy = 0;
           }
-          
-          // 平滑移動到目標位置
-          s.renderX = s.renderX + (s.targetRenderX - s.renderX) * 0.2; // 簡單的 easing
-          s.renderY = s.renderY + (s.targetRenderY - s.renderY) * 0.2;
-          // 修正：非常接近時直接吸附
-          if (Math.abs(s.renderX - s.targetRenderX) < 0.01) s.renderX = s.targetRenderX;
-          if (Math.abs(s.renderY - s.targetRenderY) < 0.01) s.renderY = s.targetRenderY;
       }
   });
   
@@ -606,9 +622,17 @@ function updateEnemies(target) {
     enemies.forEach(e => {
         if (e.hp <= 0 || e.dead) return;
         
-        const angle = Math.atan2(targetPixelY - e.y, targetPixelX - e.x);
-        e.x += Math.cos(angle) * ENEMY_SPEED;
-        e.y += Math.sin(angle) * ENEMY_SPEED;
+        // 更新緩停計時器
+        if (e.stunTimer !== undefined && e.stunTimer > 0) {
+            e.stunTimer--;
+        }
+        
+        // 只有在沒有緩停時才移動
+        if (!e.stunTimer || e.stunTimer <= 0) {
+            const angle = Math.atan2(targetPixelY - e.y, targetPixelX - e.x);
+            e.x += Math.cos(angle) * ENEMY_SPEED;
+            e.y += Math.sin(angle) * ENEMY_SPEED;
+        }
         
         if (e.hitTimer > 0) e.hitTimer--;
         if (e.hpTextTimer > 0) e.hpTextTimer--;
@@ -661,20 +685,27 @@ function updateEnemies(target) {
                         const nx = dx / collisionDist;
                         const ny = dy / collisionDist;
                         
-                        // 回彈力度（像素）
-                        const bounceForce = 30;
+                        // 回彈力度（像素）- 增加推開距離
+                        const bounceForce = 50;
                         
                         // 推開敵人（遠離玩家）
                         e.x -= nx * bounceForce;
                         e.y -= ny * bounceForce;
                         
+                        // 添加緩停效果（200ms，約 12 幀 @ 60fps）
+                        e.stunTimer = 12;
+                        
                         // 為玩家添加視覺回彈偏移（不影響邏輯位置）
                         // 使用回彈速度，在後續幀中逐漸衰減
+                        // 減少回彈力度，避免影響移動流暢度
                         if (!s.bounceVx) s.bounceVx = 0;
                         if (!s.bounceVy) s.bounceVy = 0;
-                        s.bounceVx = nx * bounceForce / GRID_SIZE * 0.5; // 轉換為網格單位並減半
-                        s.bounceVy = ny * bounceForce / GRID_SIZE * 0.5;
+                        s.bounceVx = nx * bounceForce / GRID_SIZE * 0.3; // 進一步減少回彈力度（從 0.5 到 0.3）
+                        s.bounceVy = ny * bounceForce / GRID_SIZE * 0.3;
                     }
+                    
+                    // 為領隊添加受傷閃爍效果（深紅色）
+                    s.hitTimer = 10; // 閃爍 10 幀
                     
                     // 受傷特效
                     effects.push({
@@ -703,6 +734,9 @@ function updateEnemies(target) {
                             
                             // 減少騎士的 hitPoints
                             knightSeg.hitPoints--;
+                            
+                            // 為被撞的隊員添加受傷閃爍效果（深紅色）
+                            s.hitTimer = 10; // 閃爍 10 幀
                             
                             // 如果騎士的 hitPoints 歸零，移除騎士
                             if (knightSeg.hitPoints <= 0) {
@@ -743,6 +777,8 @@ function updateEnemies(target) {
                     
                     if (!knightFound) {
                         // 沒有騎士，移除被撞的隊員
+                        // 在移除前添加受傷閃爍效果（雖然會立即移除，但視覺上更連貫）
+                        s.hitTimer = 3; // 短暫閃爍
                         snake.splice(index, 1);
                         scoreValue.textContent = snake.length;
                     }
@@ -757,14 +793,6 @@ function updateEnemies(target) {
 
 function getKnightHitPoints() {
     return getUpgradedValue("knight", "hitPoints", 1);
-}
-
-function getUpgradedValue(role, key, baseValue) {
-    if (!window.UPGRADE_CONFIG) return baseValue;
-    const upgrade = window.UPGRADE_CONFIG.upgrades[role]?.[key];
-    if (!upgrade) return baseValue;
-    const level = upgradeLevels[role][key] || 0;
-    return baseValue + (level * upgrade.increment);
 }
 
 function addExp(amount) {
@@ -911,7 +939,9 @@ function createUpgradeOptionElement(option, index) {
     
     const desc = document.createElement("div");
     desc.className = "upgrade-option-desc";
-    let descText = option.upgrade.description.replace("{value}", option.upgrade.increment || 1);
+    // 對於負數 increment（如移動速度），顯示絕對值
+    const displayValue = Math.abs(option.upgrade.increment || 1);
+    let descText = option.upgrade.description.replace("{value}", displayValue);
     desc.textContent = descText;
     
     const level = document.createElement("div");
@@ -1303,8 +1333,19 @@ function draw() {
       const s = snake[i];
       const pos = camera.transform(s.renderX * GRID_SIZE, s.renderY * GRID_SIZE);
       const assetKey = s.role;
+      
       if (ASSETS[assetKey]) {
           ASSETS[assetKey].draw(ctx, pos.x, pos.y, GRID_SIZE, s.facing);
+          
+          // 如果正在受傷閃爍，用深紅色覆蓋（hitTimer 已在邏輯更新階段更新）
+          if (s.hitTimer !== undefined && s.hitTimer > 0) {
+              ctx.save();
+              ctx.globalAlpha = 0.6; // 半透明深紅色覆蓋
+              ctx.fillStyle = "#8b0000"; // 深紅色
+              ctx.fillRect(pos.x, pos.y, GRID_SIZE, GRID_SIZE);
+              ctx.globalAlpha = 1;
+              ctx.restore();
+          }
       }
       
       // 隊長血條

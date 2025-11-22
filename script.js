@@ -168,18 +168,26 @@ function updateLoader() {
   const loaderBar = document.getElementById("loaderBar");
   const loaderText = document.getElementById("loaderText");
   if (loaderBar) loaderBar.style.width = `${percent}%`;
-  if (loaderText) loaderText.innerText = `載入資產中... ${percent}%`;
+  if (loaderText) loaderText.innerText = `勇者準備中... ${percent}%`;
 
+  // 所有資產載入完成後，隱藏載入畫面並顯示主選單
   if (assetsLoaded >= TOTAL_ASSETS) {
+    const homeLoader = document.getElementById("homeLoader");
+    const homeMenu = document.getElementById("homeMenu");
+    if (homeLoader) {
+      homeLoader.classList.add("hidden");
+    }
+    if (homeMenu) {
+      homeMenu.classList.remove("hidden");
+    }
     finishLoading();
   }
 }
 
 function finishLoading() {
   assetsReady = true;
-  const homeLoader = document.getElementById("homeLoader");
+  // 載入畫面已在 updateLoader 中隱藏（100% 時）
   const homeMenu = document.getElementById("homeMenu");
-  if (homeLoader) homeLoader.classList.add("hidden");
   if (homeMenu) homeMenu.classList.remove("hidden");
 
   // Auto-fill name
@@ -1705,10 +1713,14 @@ if (guideBtn) {
     });
 }
 
-pauseBtn.addEventListener("click", () => {
-    isPaused = true;
-    pauseModal.classList.remove("hidden");
-});
+if (pauseBtn) {
+    pauseBtn.addEventListener("click", () => {
+        isPaused = true;
+        if (pauseModal) {
+            pauseModal.classList.remove("hidden");
+        }
+    });
+}
 
 // 排行榜按鈕（遊戲中）
 if (leaderboardBtn) {
@@ -1753,14 +1765,33 @@ if (guideCloseBtn) {
     });
 }
 
-document.getElementById("pauseResumeBtn").addEventListener("click", () => {
-    pauseModal.classList.add("hidden");
-    startCountdown();
-});
+// 暫停 Modal 關閉按鈕（X 按鈕，功能與繼續遊戲相同）
+const pauseCloseBtn = document.getElementById("pauseCloseBtn");
+if (pauseCloseBtn) {
+    pauseCloseBtn.addEventListener("click", () => {
+        if (pauseModal) {
+            pauseModal.classList.add("hidden");
+        }
+        startCountdown();
+    });
+}
 
-document.getElementById("pauseHomeBtn").addEventListener("click", () => {
-    window.location.reload(); // 簡單重置
-});
+const pauseResumeBtn = document.getElementById("pauseResumeBtn");
+if (pauseResumeBtn) {
+    pauseResumeBtn.addEventListener("click", () => {
+        if (pauseModal) {
+            pauseModal.classList.add("hidden");
+        }
+        startCountdown();
+    });
+}
+
+const pauseHomeBtn = document.getElementById("pauseHomeBtn");
+if (pauseHomeBtn) {
+    pauseHomeBtn.addEventListener("click", () => {
+        window.location.reload(); // 簡單重置
+    });
+}
 
 function triggerGameOver() {
     isGameOver = true;
@@ -1859,20 +1890,28 @@ if (uploadScoreBtn) {
 function startCountdown() {
     isCountdown = true;
     let count = 3;
-    countdownOverlay.classList.remove("hidden");
-    countdownNumber.innerText = count;
+    if (countdownOverlay) {
+        countdownOverlay.classList.remove("hidden");
+    }
+    if (countdownNumber) {
+        countdownNumber.innerText = count;
+    }
     
     const interval = setInterval(() => {
         count--;
         if (count > 0) {
-            countdownNumber.innerText = count;
-            // reset animation
-            countdownNumber.style.animation = 'none';
-            countdownNumber.offsetHeight; /* trigger reflow */
-            countdownNumber.style.animation = null; 
+            if (countdownNumber) {
+                countdownNumber.innerText = count;
+                // reset animation
+                countdownNumber.style.animation = 'none';
+                countdownNumber.offsetHeight; /* trigger reflow */
+                countdownNumber.style.animation = null;
+            }
         } else {
             clearInterval(interval);
-            countdownOverlay.classList.add("hidden");
+            if (countdownOverlay) {
+                countdownOverlay.classList.add("hidden");
+            }
             isCountdown = false;
             isPaused = false;
         }

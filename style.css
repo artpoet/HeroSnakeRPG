@@ -80,24 +80,22 @@ canvas#minimap {
   display: block;
 }
 
-/* 頂部狀態列 (分數、等級) */
+/* 小地圖右側：遊戲資訊 */
 .top-stats {
   position: absolute;
   top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 182px; /* 小地圖寬度 150px + 間距 16px + 小地圖右邊距 16px */
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 8px;
-  width: 240px;
   pointer-events: none; /* 這裡不需要點擊 */
+  max-width: calc(100vw - 250px); /* 避免與右上角按鈕重疊（預留 250px 給按鈕） */
 }
 
 .score-row {
   display: flex;
   gap: 8px;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .score-pill {
@@ -114,11 +112,11 @@ canvas#minimap {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
   background: rgba(15, 23, 42, 0.8);
   padding: 4px 8px;
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.1);
+  min-width: 200px;
 }
 
 .level-badge {
@@ -163,6 +161,7 @@ canvas#minimap {
   display: flex;
   gap: 10px;
   pointer-events: auto;
+  z-index: 100; /* 確保在資訊上方 */
 }
 
 .control-btn {
@@ -345,17 +344,27 @@ canvas#minimap {
 }
 
 .modal-close {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border: none;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.1);
   color: #f1f5f9;
-  font-size: 2rem;
+  font-size: 1.8rem;
   line-height: 1;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.modal-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.modal-close:active {
+  transform: scale(0.9);
 }
 
 .modal-body, .overlay-content {
@@ -543,6 +552,49 @@ canvas#minimap {
     background: #1e293b;
     color: white;
     cursor: pointer;
+}
+
+/* 暫停 Modal 按鈕樣式 */
+.pause-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+}
+
+.pause-btn {
+    width: 100%;
+    padding: 14px 20px;
+    border-radius: 10px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    background: rgba(30, 41, 59, 0.8);
+    color: #f1f5f9;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+
+.pause-btn:hover {
+    background: rgba(30, 41, 59, 1);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.pause-btn:active {
+    transform: scale(0.98);
+}
+
+.pause-btn.primary {
+    background: linear-gradient(135deg, #4ade80, #22c55e);
+    border-color: #4ade80;
+    color: #0f172a;
+    font-weight: 600;
+}
+
+.pause-btn.primary:hover {
+    background: linear-gradient(135deg, #5ee88f, #34d399);
+    border-color: #5ee88f;
 }
 
 /* 排行榜樣式 */

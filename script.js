@@ -966,25 +966,102 @@ function generateUpgradeOptions() {
     if (!window.UPGRADE_CONFIG) return [];
     
     const config = window.UPGRADE_CONFIG.upgrades;
-    const availableOptions = [];
+    
+    // 按職業分組，分別記錄未滿級和滿級的選項
+    const byRole = {
+        available: {}, // 未滿級選項
+        maxed: {}      // 滿級選項
+    };
     
     Object.keys(config).forEach(role => {
+        byRole.available[role] = [];
+        byRole.maxed[role] = [];
+        
         Object.keys(config[role]).forEach(upgradeKey => {
             const upgrade = config[role][upgradeKey];
             const currentLevel = upgradeLevels[role][upgradeKey];
             
+            const option = {
+                role,
+                key: upgradeKey,
+                upgrade,
+                currentLevel,
+            };
+            
             if (currentLevel < upgrade.maxLevel) {
-                availableOptions.push({
-                    role,
-                    key: upgradeKey,
-                    upgrade,
-                    currentLevel,
-                });
+                byRole.available[role].push(option);
+            } else {
+                option.isMaxed = true;
+                byRole.maxed[role].push(option);
             }
         });
     });
     
-    if (availableOptions.length === 0) {
+    // 獲取所有職業列表
+    const allRoles = Object.keys(config);
+    
+    // 分離有未滿級選項的職業和只有滿級選項的職業
+    const rolesWithAvailable = allRoles.filter(role => byRole.available[role].length > 0);
+    const rolesOnlyMaxed = allRoles.filter(role => byRole.available[role].length === 0 && byRole.maxed[role].length > 0);
+    
+    const result = [];
+    const usedRoles = new Set();
+    
+    // 優先從有未滿級選項的職業中選擇
+    if (rolesWithAvailable.length > 0) {
+        // 如果未滿級職業數量 <= 3，從每個職業中隨機選擇一個未滿級選項
+        if (rolesWithAvailable.length <= 3) {
+            rolesWithAvailable.forEach(role => {
+                const roleOptions = byRole.available[role];
+                result.push(roleOptions[Math.floor(Math.random() * roleOptions.length)]);
+                usedRoles.add(role);
+            });
+        } else {
+            // 如果未滿級職業數量 > 3，隨機選擇 3 個不同的職業
+            while (result.length < 3 && rolesWithAvailable.length > usedRoles.size) {
+                const availableRoles = rolesWithAvailable.filter(r => !usedRoles.has(r));
+                const randomIndex = Math.floor(Math.random() * availableRoles.length);
+                const role = availableRoles[randomIndex];
+                const roleOptions = byRole.available[role];
+                result.push(roleOptions[Math.floor(Math.random() * roleOptions.length)]);
+                usedRoles.add(role);
+            }
+        }
+    }
+    
+    // 如果選項不足 3 個，從只有滿級選項的職業中補足
+    if (result.length < 3 && rolesOnlyMaxed.length > 0) {
+        const availableMaxedRoles = rolesOnlyMaxed.filter(r => !usedRoles.has(r));
+        while (result.length < 3 && availableMaxedRoles.length > 0) {
+            const randomIndex = Math.floor(Math.random() * availableMaxedRoles.length);
+            const role = availableMaxedRoles[randomIndex];
+            const roleOptions = byRole.maxed[role];
+            if (roleOptions.length > 0) {
+                result.push(roleOptions[Math.floor(Math.random() * roleOptions.length)]);
+                usedRoles.add(role);
+                // 從可用列表中移除已使用的職業
+                const index = availableMaxedRoles.indexOf(role);
+                if (index > -1) availableMaxedRoles.splice(index, 1);
+            }
+        }
+    }
+    
+    // 如果仍然不足 3 個（所有職業都只有滿級選項），從所有滿級選項中隨機選擇
+    if (result.length < 3) {
+        const allMaxedOptions = [];
+        Object.keys(byRole.maxed).forEach(role => {
+            allMaxedOptions.push(...byRole.maxed[role]);
+        });
+        
+        while (result.length < 3 && allMaxedOptions.length > 0) {
+            const randomIndex = Math.floor(Math.random() * allMaxedOptions.length);
+            result.push(allMaxedOptions[randomIndex]);
+            allMaxedOptions.splice(randomIndex, 1);
+        }
+    }
+    
+    // 如果還是沒有選項，返回預設的滿級選項
+    if (result.length === 0) {
         return [{
             role: "leader",
             key: "maxHp",
@@ -993,44 +1070,6 @@ function generateUpgradeOptions() {
             isMaxed: true,
         }];
     }
-    
-    // 按職業分組
-    const byRole = {};
-    availableOptions.forEach(opt => {
-        if (!byRole[opt.role]) byRole[opt.role] = [];
-        byRole[opt.role].push(opt);
-    });
-    
-    const roles = Object.keys(byRole);
-    
-    // 如果職業數量 <= 3，從每個職業中隨機選擇一個
-    if (roles.length <= 3) {
-        const result = [];
-        roles.forEach(role => {
-            const roleOptions = byRole[role];
-            result.push(roleOptions[Math.floor(Math.random() * roleOptions.length)]);
-        });
-        return result;
-    }
-    
-    // 如果職業數量 > 3，先隨機選擇 3 個不同的職業
-    const selectedRoles = [];
-    const usedRoles = new Set();
-    while (selectedRoles.length < 3 && selectedRoles.length < roles.length) {
-        const randomIndex = Math.floor(Math.random() * roles.length);
-        const role = roles[randomIndex];
-        if (!usedRoles.has(role)) {
-            usedRoles.add(role);
-            selectedRoles.push(role);
-        }
-    }
-    
-    // 從選中的職業中，每個職業隨機選擇一個選項
-    const result = [];
-    selectedRoles.forEach(role => {
-        const roleOptions = byRole[role];
-        result.push(roleOptions[Math.floor(Math.random() * roleOptions.length)]);
-    });
     
     return result;
 }
@@ -1061,7 +1100,9 @@ function createUpgradeOptionElement(option, index) {
     const level = document.createElement("div");
     level.className = "upgrade-option-level";
     if (option.isMaxed) {
-        level.textContent = "已滿級（效果：隊長最大HP+1）";
+        level.textContent = "Lv MAX";
+        // 滿級時，描述改為隊長最大血量+1
+        desc.textContent = "隊長最大血量 +1";
     } else {
         level.textContent = `Lv ${option.currentLevel + 1} / ${option.upgrade.maxLevel}`;
     }
@@ -1083,12 +1124,24 @@ function createUpgradeOptionElement(option, index) {
 function selectUpgrade(option) {
     if (!window.UPGRADE_CONFIG) return;
     
-    upgradeLevels[option.role][option.key] += 1;
-    
-    // 如果是隊長血量升級，立即更新當前血量上限
-    if (option.role === "leader" && option.key === "maxHp") {
+    // 如果是滿級選項，固定增加隊長最大血量
+    if (option.isMaxed) {
+        const config = window.UPGRADE_CONFIG.maxedOutBonus || { hpIncrease: 1 };
+        const hpIncrease = config.hpIncrease || 1;
+        
+        // 增加隊長最大血量
+        upgradeLevels.leader.maxHp += hpIncrease;
         const newMaxHp = getLeaderMaxHp();
         leaderHP = Math.min(newMaxHp, leaderHP + 5); // 增加當前血量
+    } else {
+        // 正常升級
+        upgradeLevels[option.role][option.key] += 1;
+        
+        // 如果是隊長血量升級，立即更新當前血量上限
+        if (option.role === "leader" && option.key === "maxHp") {
+            const newMaxHp = getLeaderMaxHp();
+            leaderHP = Math.min(newMaxHp, leaderHP + 5); // 增加當前血量
+        }
     }
     
     upgradeOverlay.classList.add("hidden");

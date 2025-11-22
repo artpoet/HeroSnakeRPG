@@ -1,3 +1,6 @@
+// 遊戲版本號
+const GAME_VERSION = "1.1.1";
+
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
@@ -16,7 +19,6 @@ const upgradeOptions = document.getElementById("upgradeOptions");
 const gameOverOverlay = document.getElementById("gameOverOverlay");
 
 // Buttons
-const pauseBtn = document.getElementById("pauseBtn");
 const leaderboardBtn = document.getElementById("leaderboardBtn");
 const guideBtn = document.getElementById("guideBtn");
 
@@ -312,6 +314,14 @@ function finishLoading() {
   // 載入畫面已在 updateLoader 中隱藏（100% 時）
   const homeMenu = document.getElementById("homeMenu");
   if (homeMenu) homeMenu.classList.remove("hidden");
+
+  // 顯示版本號
+  const versionText = document.getElementById("versionText");
+  const versionNumber = document.getElementById("versionNumber");
+  if (versionText && versionNumber) {
+    versionNumber.textContent = GAME_VERSION;
+    versionText.classList.remove("hidden");
+  }
 
   // Auto-fill name
   const savedName = localStorage.getItem("playerName");
@@ -1547,16 +1557,29 @@ function createUpgradeOptionElement(option, index) {
             const percentText = `<span style="color: #4ade80; font-weight: bold;">${speedIncreasePercent.toFixed(1)}%</span>`;
             descText = `隊長移動速度提升 ${percentText}`;
         } else {
+            // 特殊處理：maxHp 顯示增量（increment）而不是總值
+            let displayValue = nextValue;
+            let showIncrement = true; // 是否顯示這次升級的量
+            
+            if (option.role === "leader" && option.key === "maxHp") {
+                // 對於血量，顯示增量（每次升級增加的值），不顯示括號
+                displayValue = option.upgrade.increment;
+                showIncrement = false;
+            }
+            
             // 替換 {value}：顯示升級後的數值（綠色），包含前面的加減符號
             // 檢查 {value} 前面是否有 + 或 - 符號
+            let valueReplacement;
+            const incrementText = showIncrement ? ` <span style="color: #94a3b8; font-size: 0.9em;">(+${option.upgrade.increment})</span>` : "";
+            
             if (descText.includes("+{value}")) {
-                const valueReplacement = `<span style="color: #4ade80; font-weight: bold;">+${nextValue}</span>`;
+                valueReplacement = `<span style="color: #4ade80; font-weight: bold;">+${displayValue}</span>${incrementText}`;
                 descText = descText.replace("+{value}", valueReplacement);
             } else if (descText.includes("-{value}")) {
-                const valueReplacement = `<span style="color: #4ade80; font-weight: bold;">-${nextValue}</span>`;
+                valueReplacement = `<span style="color: #4ade80; font-weight: bold;">-${displayValue}</span>${incrementText}`;
                 descText = descText.replace("-{value}", valueReplacement);
             } else {
-                const valueReplacement = `<span style="color: #4ade80; font-weight: bold;">${nextValue}</span>`;
+                valueReplacement = `<span style="color: #4ade80; font-weight: bold;">${displayValue}</span>${incrementText}`;
                 descText = descText.replace("{value}", valueReplacement);
             }
             
@@ -1567,15 +1590,17 @@ function createUpgradeOptionElement(option, index) {
                 // 升級後傷害 = (當前等級 + 1) * damageIncrement
                 const currentLevel = option.currentLevel || 0;
                 const nextDamage = (currentLevel + 1) * option.upgrade.damageIncrement;
+                const damageIncrement = option.upgrade.damageIncrement;
+                const damageIncrementText = ` <span style="color: #94a3b8; font-size: 0.9em;">(+${damageIncrement})</span>`;
                 
                 if (descText.includes("+{damage}")) {
-                    const damageReplacement = `<span style="color: #4ade80; font-weight: bold;">+${nextDamage}</span>`;
+                    const damageReplacement = `<span style="color: #4ade80; font-weight: bold;">+${nextDamage}</span>${damageIncrementText}`;
                     descText = descText.replace("+{damage}", damageReplacement);
                 } else if (descText.includes("-{damage}")) {
-                    const damageReplacement = `<span style="color: #4ade80; font-weight: bold;">-${nextDamage}</span>`;
+                    const damageReplacement = `<span style="color: #4ade80; font-weight: bold;">-${nextDamage}</span>${damageIncrementText}`;
                     descText = descText.replace("-{damage}", damageReplacement);
                 } else {
-                    const damageReplacement = `<span style="color: #4ade80; font-weight: bold;">${nextDamage}</span>`;
+                    const damageReplacement = `<span style="color: #4ade80; font-weight: bold;">${nextDamage}</span>${damageIncrementText}`;
                     descText = descText.replace("{damage}", damageReplacement);
                 }
             }
@@ -3091,15 +3116,6 @@ if (guideBtn) {
         if (guideModal) {
             guideModal.classList.remove("hidden");
     renderGuidePanel();
-        }
-    });
-}
-
-if (pauseBtn) {
-    pauseBtn.addEventListener("click", () => {
-        isPaused = true;
-        if (pauseModal) {
-            pauseModal.classList.remove("hidden");
         }
     });
 }

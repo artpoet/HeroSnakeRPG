@@ -484,6 +484,22 @@ canvas#minimap {
   transform: scale(0.98);
 }
 
+/* 版本號顯示 */
+.version-text {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(148, 163, 184, 0.6);
+  font-size: 0.85rem;
+  text-align: center;
+  pointer-events: none;
+}
+
+.version-text.hidden {
+  display: none;
+}
+
 /* ========== Modals & Overlays ========== */
 .modal, .overlay {
   position: fixed;
@@ -594,6 +610,10 @@ canvas#minimap {
   -ms-overflow-style: none;
 }
 
+.upgrade-content {
+  max-width: 550px; /* 增加最大寬度，容納更寬的選項 */
+}
+
 .overlay-content::-webkit-scrollbar {
   display: none;
 }
@@ -691,6 +711,9 @@ canvas#minimap {
   border-radius: 12px;
   padding: 12px;
   cursor: pointer;
+  min-width: 0; /* 允許縮小 */
+  width: 100%;
+  max-width: 500px; /* 增加最大寬度，容納更多文字 */
 }
 
 .upgrade-option:active {

@@ -44,7 +44,7 @@ window.UPGRADE_CONFIG = {
         name: "施法範圍",
         description: "法師光環範圍 +{value} 像素",
         baseValue: 80,      // 基礎範圍（AURA_RADIUS）
-        increment: 10,      // 每次升級增加的值
+        increment: 15,     // 每次升級增加的值（從 10 改為 15）
         maxLevel: 8,        // 最大等級
         icon: "mage.png",   // 圖示
       },
@@ -122,10 +122,10 @@ window.UPGRADE_CONFIG = {
         icon: "knight.png",
       },
       deathBonus: {
-        name: "死亡後增加隊伍長度",
+        name: "死亡後招募勇者",
         description: "騎士死亡時隊伍長度 +{value}",
         baseValue: 0,       // 基礎值（0 表示沒有加成）
-        increment: 1,       // 每次升級增加的值
+        increment: 2,       // 每次升級增加的值（從 1 改為 2）
         maxLevel: 3,
         icon: "knight.png",
       },
@@ -152,9 +152,9 @@ window.UPGRADE_CONFIG = {
     leader: {
       maxHp: {
         name: "血量",
-        description: "隊長最大血量 +{value}",
+        description: "隊長最大血量額外 +{value}",
         baseValue: 150,     // 基礎血量（LEADER_MAX_HP）
-        increment: 5,       // 每次升級增加的值
+        increment: 10,      // 每次升級增加的值（從 5 改為 10）
         maxLevel: 10,
         icon: "leader.png",
       },

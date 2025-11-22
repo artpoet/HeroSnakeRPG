@@ -11,19 +11,19 @@ window.UPGRADE_CONFIG = {
   },
 
   // ========== 怪物等級系統 ==========
-  // 怪物等級範圍：1-10 級
+  // 怪物等級範圍：1-8 級（對應 mob_1.png ~ mob_8.png）
   // 怪物屬性計算公式：
   // - 血量：baseHp + (level - 1) * hpPerLevel
   // - 傷害：baseDamage + (level - 1) * damagePerLevel
   // - 經驗值：baseExp * level
   enemyLevel: {
     minLevel: 1,        // 最低等級
-    maxLevel: 10,        // 最高等級
+    maxLevel: 8,        // 最高等級（從 10 改為 8）
     baseHp: 20,         // 等級 1 的基礎血量
-    hpPerLevel: 20,     // 每級增加的血量
+    hpPerLevel: 20,     // 每級增加的血量（LV1: 20, LV8: 160）
     baseDamage: 35,     // 等級 1 的基礎傷害
-    damagePerLevel: 7,   // 每級增加的傷害
-    baseExp: 10,        // 等級 1 的基礎經驗值（實際經驗值 = baseExp * level）
+    damagePerLevel: 7,   // 每級增加的傷害（LV1: 35, LV8: 84）
+    baseExp: 10,        // 等級 1 的基礎經驗值（實際經驗值 = baseExp * level，LV1: 10, LV8: 80）
   },
 
   // 怪物等級隨時間/玩家等級提升規則

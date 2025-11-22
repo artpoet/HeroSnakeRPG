@@ -110,10 +110,22 @@ const assetDefinitions = {
   archer: { src: "archer.png", fallbackColor: "#22c55e", fallbackSymbol: "🏹" },
   mage: { src: "mage.png", fallbackColor: "#3b82f6", fallbackSymbol: "🔮" },
   knight: { src: "knight.png", fallbackColor: "#facc15", fallbackSymbol: "🛡️" },
-  enemy: { src: "enemy.png", fallbackColor: "#efefef", fallbackSymbol: "💀" },
   item: { src: "item.png", fallbackColor: "#a855f7", fallbackSymbol: "🎁" },
 };
-const TOTAL_ASSETS = Object.keys(assetDefinitions).length;
+
+// 怪物圖片資源（根據等級載入對應圖片）
+const enemyAssetDefinitions = {};
+for (let level = 1; level <= 8; level++) {
+  enemyAssetDefinitions[`mob_${level}`] = {
+    src: `mob_${level}.png`,
+    fallbackColor: "#efefef",
+    fallbackSymbol: "💀"
+  };
+}
+
+// 合併所有資源定義
+const allAssetDefinitions = { ...assetDefinitions, ...enemyAssetDefinitions };
+const TOTAL_ASSETS = Object.keys(allAssetDefinitions).length;
 const ASSETS = {};
 
 // ========== 初始化與資源載入 ==========
@@ -125,6 +137,7 @@ function createAsset(key, def) {
   const asset = {
     img: img,
     loaded: false,
+    decoded: false, // 標記是否已解碼
     draw(ctx, x, y, size, facing = 1) {
       if (this.loaded) {
         if (facing === -1) {
@@ -151,9 +164,25 @@ function createAsset(key, def) {
 
   img.onload = () => {
     asset.loaded = true;
-    assetsLoaded++;
-    updateLoader();
+    
+    // 預先解碼圖片，避免第一次繪製時卡頓
+    // 使用 decode() API（如果支援）或離屏 Canvas 強制解碼
+    if (img.decode) {
+      // 使用現代瀏覽器的 decode() API
+      img.decode().then(() => {
+        asset.decoded = true;
+        assetsLoaded++;
+        updateLoader();
+      }).catch(() => {
+        // 如果 decode() 失敗，使用離屏 Canvas 解碼
+        decodeImageWithCanvas(img, asset);
+      });
+    } else {
+      // 舊瀏覽器：使用離屏 Canvas 解碼
+      decodeImageWithCanvas(img, asset);
+    }
   };
+  
   img.onerror = () => {
     asset.loaded = false; // Keep using fallback
     assetsLoaded++; // Still count as handled
@@ -161,6 +190,29 @@ function createAsset(key, def) {
   };
   
   return asset;
+}
+
+// 使用離屏 Canvas 預先解碼圖片
+function decodeImageWithCanvas(img, asset) {
+  try {
+    // 創建一個小的離屏 Canvas 來強制解碼
+    const offscreenCanvas = document.createElement('canvas');
+    offscreenCanvas.width = Math.min(img.width || 32, 32);
+    offscreenCanvas.height = Math.min(img.height || 32, 32);
+    const offscreenCtx = offscreenCanvas.getContext('2d');
+    
+    // 繪製圖片到離屏 Canvas，強制瀏覽器解碼
+    offscreenCtx.drawImage(img, 0, 0, offscreenCanvas.width, offscreenCanvas.height);
+    
+    asset.decoded = true;
+    assetsLoaded++;
+    updateLoader();
+  } catch (e) {
+    // 如果解碼失敗，仍然標記為已載入
+    asset.decoded = true;
+    assetsLoaded++;
+    updateLoader();
+  }
 }
 
 // 勇者幹話陣列（從 hero-quotes-config.js 載入）
@@ -232,7 +284,8 @@ function finishLoading() {
 }
 
 // 初始化資產
-for (const [key, def] of Object.entries(assetDefinitions)) {
+// 初始化所有資產（包括怪物圖片）
+for (const [key, def] of Object.entries(allAssetDefinitions)) {
   ASSETS[key] = createAsset(key, def);
 }
 
@@ -495,7 +548,52 @@ function moveSnake(timestamp) {
   // 檢查道具（檢查所有道具）
   const collectedItemIndex = items.findIndex(it => it && head.x === it.x && head.y === it.y);
   if (collectedItemIndex !== -1) {
+      const item = items[collectedItemIndex];
+      const itemPixelX = item.x * GRID_SIZE + GRID_SIZE/2;
+      const itemPixelY = item.y * GRID_SIZE + GRID_SIZE/2;
+      
       handleItemCollection();
+      
+      // 添加道具收集特效
+      // 1. 光環擴散效果（黃白色）
+      effects.push({
+          type: "item-collect",
+          x: itemPixelX,
+          y: itemPixelY,
+          radius: 0,
+          maxRadius: GRID_SIZE * 1.5,
+          alpha: 0.8,
+          life: 20,
+          color: "#facc15" // 亮黃色，開心一點
+      });
+      
+      // 2. 星星粒子效果（多個小星星向外擴散，白色）
+      for (let i = 0; i < 8; i++) {
+          const angle = (Math.PI * 2 / 8) * i;
+          const speed = 2;
+          effects.push({
+              type: "item-star",
+              x: itemPixelX,
+              y: itemPixelY,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              size: 4,
+              alpha: 1,
+              life: 15,
+              color: "#ffffff" // 白色，更明顯
+          });
+      }
+      
+      // 3. 文字特效（+1）
+      effects.push({
+          type: "text",
+          text: "+1",
+          x: itemPixelX,
+          y: itemPixelY,
+          life: 30,
+          color: "#4ade80"
+      });
+      
       // 移除收集的道具，生成新的
       items[collectedItemIndex] = spawnItem();
   }
@@ -529,13 +627,7 @@ function handleItemCollection() {
     scoreValue.innerText = snake.length;
     maxLengthThisRun = Math.max(maxLengthThisRun, snake.length);
     
-    // 視覺特效
-    effects.push({
-        type: "text", text: "+1", 
-        x: (tail.x * GRID_SIZE) + GRID_SIZE/2, 
-        y: (tail.y * GRID_SIZE) + GRID_SIZE/2,
-        life: 30, color: "#4ade80"
-    });
+    // 視覺特效（文字特效已在收集道具時添加，這裡不需要重複）
 }
 
 // Game Loop
@@ -1294,15 +1386,32 @@ function draw() {
       if (pos.x > -GRID_SIZE && pos.x < canvas.width && pos.y > -GRID_SIZE && pos.y < canvas.height) {
           ctx.save();
           
-          // 受傷特效：變紅
-          if (e.hitTimer > 0) {
-              ctx.globalAlpha = 0.5;
-              ctx.fillStyle = "#ef4444";
+          // 根據怪物等級使用對應的圖片（mob_1.png ~ mob_8.png）
+          const enemyLevel = e.level || 1;
+          const clampedLevel = Math.max(1, Math.min(8, enemyLevel)); // 限制在 1-8 範圍
+          const mobAssetKey = `mob_${clampedLevel}`;
+          if (ASSETS[mobAssetKey]) {
+              ASSETS[mobAssetKey].draw(ctx, pos.x, pos.y, GRID_SIZE);
+          } else {
+              // 如果圖片未載入，使用 fallback
+              ctx.fillStyle = "#efefef";
               ctx.fillRect(pos.x, pos.y, GRID_SIZE, GRID_SIZE);
-              ctx.globalAlpha = 1;
+              ctx.fillStyle = "#fff";
+              ctx.font = `${GRID_SIZE/2}px sans-serif`;
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              ctx.fillText("💀", pos.x + GRID_SIZE/2, pos.y + GRID_SIZE/2);
           }
           
-          ASSETS.enemy.draw(ctx, pos.x, pos.y, GRID_SIZE);
+          // 受傷特效：深紫色閃爍（繪製在圖片上方）
+          if (e.hitTimer > 0) {
+              ctx.globalCompositeOperation = "multiply"; // 使用混合模式讓效果更明顯
+              ctx.globalAlpha = 0.7;
+              ctx.fillStyle = "#6b21a8"; // 深紫色
+              ctx.fillRect(pos.x, pos.y, GRID_SIZE, GRID_SIZE);
+              ctx.globalAlpha = 1;
+              ctx.globalCompositeOperation = "source-over"; // 恢復正常混合模式
+          }
           
           // 血條
           if (e.hp < e.maxHp) {
@@ -1406,6 +1515,44 @@ function draw() {
           ctx.arc(pos.x, pos.y, e.radius, 0, Math.PI * 2);
           ctx.fill();
           e.alpha -= 0.05;
+          e.life--;
+      } else if (e.type === "item-collect") {
+          // 道具收集光環擴散特效
+          const progress = 1 - (e.life / 20); // 0 到 1
+          e.radius = e.maxRadius * progress;
+          ctx.globalAlpha = e.alpha * (1 - progress); // 逐漸淡出
+          ctx.strokeStyle = e.color;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(pos.x, pos.y, e.radius, 0, Math.PI * 2);
+          ctx.stroke();
+          e.life--;
+      } else if (e.type === "item-star") {
+          // 道具收集星星粒子特效
+          e.x += e.vx;
+          e.y += e.vy;
+          const starPos = camera.transform(e.x, e.y);
+          ctx.globalAlpha = e.alpha;
+          ctx.fillStyle = e.color;
+          ctx.beginPath();
+          // 繪製小星星（五角星）
+          const spikes = 5;
+          const outerRadius = e.size;
+          const innerRadius = e.size * 0.5;
+          for (let i = 0; i < spikes * 2; i++) {
+              const angle = (Math.PI / spikes) * i;
+              const radius = i % 2 === 0 ? outerRadius : innerRadius;
+              const x = starPos.x + Math.cos(angle) * radius;
+              const y = starPos.y + Math.sin(angle) * radius;
+              if (i === 0) {
+                  ctx.moveTo(x, y);
+              } else {
+                  ctx.lineTo(x, y);
+              }
+          }
+          ctx.closePath();
+          ctx.fill();
+          e.alpha -= 0.07; // 逐漸淡出
           e.life--;
       }
       
@@ -2046,8 +2193,16 @@ if (uploadScoreBtn) {
                 uploadStatus.style.color = "#4ade80";
             }
             
-            // 更新排行榜
-            if (leaderboardModal && !leaderboardModal.classList.contains("hidden")) {
+            // 上傳成功後自動顯示排行榜
+            if (leaderboardModal) {
+                // 關閉 Game Over Modal
+                const gameOverOverlay = document.getElementById("gameOverOverlay");
+                if (gameOverOverlay) {
+                    gameOverOverlay.classList.add("hidden");
+                }
+                // 顯示排行榜 Modal
+                leaderboardModal.classList.remove("hidden");
+                // 更新排行榜內容
                 updateLeaderboard();
             }
         } catch (error) {

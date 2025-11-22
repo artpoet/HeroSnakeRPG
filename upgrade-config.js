@@ -4,10 +4,10 @@
 window.UPGRADE_CONFIG = {
   // ========== 等級與經驗值系統 ==========
   // 升級所需經驗值計算公式：baseExp * (level ^ expMultiplier)
-  // 例如：baseExp=40, expMultiplier=1.15, level=2 時需要 40 * (2^1.15) = 89 經驗值
+  // 例如：baseExp=25, expMultiplier=1.1, level=2 時需要 25 * (2^1.1) = 54 經驗值
   leveling: {
-    baseExp: 40,         // 基礎經驗值需求（從 50 進一步降低到 40，讓升級更容易）
-    expMultiplier: 1.15,  // 經驗值成長倍率（從 1.2 降低到 1.15，讓高等級升級更容易）
+    baseExp: 25,         // 基礎經驗值需求（從 40 降低到 25，讓升級更快更容易）
+    expMultiplier: 1.1,  // 經驗值成長倍率（從 1.15 降低到 1.1，讓高等級升級更容易）
   },
 
   // ========== 怪物等級系統 ==========
@@ -21,9 +21,9 @@ window.UPGRADE_CONFIG = {
     minLevel: 1,        // 最低等級
     maxLevel: 8,        // 最高等級（從 10 改為 8）
     baseHp: 20,         // 等級 1 的基礎血量
-    hpPerLevel: 20,     // 每級增加的血量（LV1: 20, LV8: 160）
+    hpPerLevel: 30,     // 每級增加的血量（LV1: 20, LV8: 230，從 20 增加到 30，讓高等級怪物更強）
     baseDamage: 35,     // 等級 1 的基礎傷害
-    damagePerLevel: 7,   // 每級增加的傷害（LV1: 35, LV8: 84）
+    damagePerLevel: 10,   // 每級增加的傷害（LV1: 35, LV8: 105，從 7 增加到 10，讓高等級怪物更強）
     baseExp: 10,        // 等級 1 的基礎經驗值（實際經驗值使用非線性公式計算）
   },
 
@@ -97,7 +97,7 @@ window.UPGRADE_CONFIG = {
         description: "命中怪物後爆炸範圍 +{value} 像素，傷害 +{damage}",
         baseValue: 0,       // 基礎值（0 表示沒有爆炸）
         increment: 50,      // 每次升級增加 50 像素範圍（從 30 增加 20）
-        damageIncrement: 5, // 每次升級增加 5 點傷害
+        damageIncrement: 2, // 每次升級增加 2 點傷害（從 5 降低到 2，避免過強）
         maxLevel: 5,
         icon: "archer.png",
       },

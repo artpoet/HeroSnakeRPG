@@ -496,8 +496,22 @@ function getEnemyLevelConfig(level) {
     // 等級 1: 10, 等級 2: 26, 等級 3: 48, 等級 4: 76, 等級 5: 110, 等級 6: 150, 等級 7: 196, 等級 8: 248
     const expMultiplier = 1 + (level - 1) * 0.3;
     const exp = Math.floor(base.baseExp * level * expMultiplier);
+    
+    // 血量計算：等級 5 以上血量更多
+    let hp;
+    if (level <= 4) {
+        // 等級 1-4：正常計算
+        hp = base.baseHp + (level - 1) * base.hpPerLevel;
+    } else {
+        // 等級 5 以上：額外增加血量
+        const baseHp = base.baseHp + (4 - 1) * base.hpPerLevel; // 等級 4 的基礎血量
+        const extraLevels = level - 4; // 超過等級 4 的級數
+        const extraHpPerLevel = base.hpPerLevel * 1.5; // 每級額外增加 50% 血量
+        hp = baseHp + extraLevels * extraHpPerLevel;
+    }
+    
     return {
-        hp: base.baseHp + (level - 1) * base.hpPerLevel,
+        hp: hp,
         damage: base.baseDamage + (level - 1) * base.damagePerLevel,
         exp: exp
     };
@@ -760,9 +774,19 @@ function updateEnemies(target) {
             const angle = Math.atan2(targetPixelY - e.y, targetPixelX - e.x);
             
             // 計算實際速度（考慮等級加成和降速光環）
-            // 等級越高速度越快：等級 1 = 100%，等級 8 = 130%（每級約 +4.3%）
+            // 等級越高速度越快：等級 1-4 = 線性增長，等級 5 以上速度更快
+            // 等級 1: 100%, 等級 4: 113%, 等級 5: 120%, 等級 8: 150%
             const enemyLevel = e.level || 1;
-            const levelSpeedMultiplier = 1 + (enemyLevel - 1) * 0.043; // 等級 1: 1.0, 等級 8: 1.301
+            let levelSpeedMultiplier;
+            if (enemyLevel <= 4) {
+                // 等級 1-4：線性增長，每級約 +4.3%
+                levelSpeedMultiplier = 1 + (enemyLevel - 1) * 0.043;
+            } else {
+                // 等級 5 以上：更快的增長速度
+                const baseSpeed = 1 + (4 - 1) * 0.043; // 等級 4 的基礎速度
+                const extraLevels = enemyLevel - 4; // 超過等級 4 的級數
+                levelSpeedMultiplier = baseSpeed + extraLevels * 0.07; // 每級額外增加 7%
+            }
             let actualSpeed = ENEMY_SPEED * levelSpeedMultiplier;
             
             if (e.inSlowAura && e.slowAuraPercent > 0) {
@@ -1483,15 +1507,22 @@ function handleArcherAttacks(timestamp) {
             const isCritical = criticalChance > 0 && Math.random() * 100 < criticalChance;
             const actualDamage = isCritical ? ARROW_DAMAGE * 2 : ARROW_DAMAGE;
             
+            // 計算起始位置
+            const startX = segCenter.x + Math.cos(angle + spreadAngle) * offsetDistance;
+            const startY = segCenter.y + Math.sin(angle + spreadAngle) * offsetDistance;
+            
             projectiles.push({
-                x: segCenter.x + Math.cos(angle + spreadAngle) * offsetDistance,
-                y: segCenter.y + Math.sin(angle + spreadAngle) * offsetDistance,
+                x: startX,
+                y: startY,
+                startX: startX, // 記錄起始位置
+                startY: startY, // 記錄起始位置
                 vx: Math.cos(angle + spreadAngle) * arrowSpeed,
                 vy: Math.sin(angle + spreadAngle) * arrowSpeed,
                 damage: actualDamage,
                 isCritical: isCritical, // 標記是否為致命一擊
                 shooterIndex: index,
-                framesAlive: 0
+                framesAlive: 0,
+                maxDistance: ATTACK_RANGE // 最大射擊距離等於瞄準距離
             });
         }
         
@@ -1530,6 +1561,15 @@ function updateProjectiles() {
             proj.framesAlive++;
             if (proj.framesAlive > 3) {
                 delete proj.shooterIndex;
+            }
+        }
+        
+        // 檢查是否超過最大射擊距離
+        if (proj.maxDistance !== undefined && proj.startX !== undefined && proj.startY !== undefined) {
+            const distanceTraveled = Math.hypot(proj.x - proj.startX, proj.y - proj.startY);
+            if (distanceTraveled > proj.maxDistance) {
+                projectilesToRemove.add(projIndex);
+                return;
             }
         }
         

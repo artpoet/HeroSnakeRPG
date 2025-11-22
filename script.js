@@ -1095,7 +1095,7 @@ function updateEnemies(target) {
                                 });
                             }
                             
-                            // 騎士無敵效果
+                            // 騎士受傷後觸發無敵效果（1秒內無敵）
                             const invincibilityDuration = getKnightInvincibility();
                             if (invincibilityDuration > 0) {
                                 const currentTime = performance.now();
@@ -1103,36 +1103,39 @@ function updateEnemies(target) {
                                 // 無敵效果已通過勇者圖片上的閃爍顯示，不需要全屏特效
                             }
                             
-                            snake.splice(knightIdx, 1);
-                            scoreValue.textContent = snake.length;
-                            
-                            // 騎士死亡獎勵：增加隊伍長度
-                            const deathBonus = getUpgradedValue("knight", "deathBonus", 0);
-                            if (deathBonus > 0) {
-                                const tail = snake[snake.length - 1];
-                                const types = ["archer", "mage", "knight"];
-                                for (let i = 0; i < deathBonus; i++) {
-                                    const newRole = types[Math.floor(Math.random() * types.length)];
-                                    const newSegment = {
-                                        x: tail.x,
-                                        y: tail.y,
-                                        renderX: tail.x,
-                                        renderY: tail.y,
-                                        targetRenderX: tail.x,
-                                        targetRenderY: tail.y,
-      role: newRole,
-                                        facing: tail.facing,
-                                        id: Date.now() + i,
-      lastShot: 0,
-                                        level: 1 // 初始等級為 1
-                                    };
-                                    // 如果是騎士，初始化 hitPoints
-                                    if (newRole === "knight") {
-                                        newSegment.hitPoints = getKnightHitPoints(1); // Lv1 的血量
-                                    }
-                                    snake.push(newSegment);
-                                }
+                            // 檢查騎士是否死亡（hitPoints <= 0）
+                            if (knightSeg.hitPoints <= 0) {
+                                snake.splice(knightIdx, 1);
                                 scoreValue.textContent = snake.length;
+                                
+                                // 騎士死亡獎勵：增加隊伍長度
+                                const deathBonus = getUpgradedValue("knight", "deathBonus", 0);
+                                if (deathBonus > 0) {
+                                    const tail = snake[snake.length - 1];
+                                    const types = ["archer", "mage", "knight"];
+                                    for (let i = 0; i < deathBonus; i++) {
+                                        const newRole = types[Math.floor(Math.random() * types.length)];
+                                        const newSegment = {
+                                            x: tail.x,
+                                            y: tail.y,
+                                            renderX: tail.x,
+                                            renderY: tail.y,
+                                            targetRenderX: tail.x,
+                                            targetRenderY: tail.y,
+                                            role: newRole,
+                                            facing: tail.facing,
+                                            id: Date.now() + i,
+                                            lastShot: 0,
+                                            level: 1 // 初始等級為 1
+                                        };
+                                        // 如果是騎士，初始化 hitPoints
+                                        if (newRole === "knight") {
+                                            newSegment.hitPoints = getKnightHitPoints(1); // Lv1 的血量
+                                        }
+                                        snake.push(newSegment);
+                                    }
+                                    scoreValue.textContent = snake.length;
+                                }
                             }
                         }
                     }
@@ -1209,6 +1212,13 @@ function getMageSlowAura() {
 
 function getArcherCritical() {
     return getUpgradedValue("archer", "critical", 0);
+}
+
+// 獲取致命攻擊的傷害倍數（每級 +20%）
+function getArcherCriticalDamageMultiplier() {
+    const level = upgradeLevels.archer.critical || 0;
+    // Lv 1: 1.2 倍 (+20%), Lv 2: 1.4 倍 (+40%), ..., Lv 10: 3.0 倍 (+200%)
+    return 1 + (level * 0.2);
 }
 
 function getKnightInvincibility() {
@@ -1660,7 +1670,8 @@ function handleArcherAttacks(timestamp) {
             const level = segment.level || 1;
             const baseDamage = 5 * level;
             
-            const actualDamage = isCritical ? baseDamage * 2 : baseDamage;
+            // 致命攻擊傷害：每級 +20% (Lv1: 1.2倍, Lv2: 1.4倍, ..., Lv10: 3.0倍)
+            const actualDamage = isCritical ? baseDamage * getArcherCriticalDamageMultiplier() : baseDamage;
             
             // 計算起始位置
             const startX = segCenter.x + Math.cos(angle + spreadAngle) * offsetDistance;

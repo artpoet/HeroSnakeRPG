@@ -103,7 +103,7 @@ window.UPGRADE_CONFIG = {
       },
       critical: {
         name: "必殺",
-        description: "{value}% 發動攻擊兩倍的致命一擊",
+        description: "{value}% 發動致命一擊（每級傷害 +20%）",
         baseValue: 0,       // 基礎值（0 表示沒有必殺）
         increment: 5,       // 每次升級增加 5% 機率
         maxLevel: 10,
@@ -140,7 +140,7 @@ window.UPGRADE_CONFIG = {
       },
       invincibility: {
         name: "無敵",
-        description: "死亡後 {value} 秒內所有我方角色對敵人攻擊無敵",
+        description: "受傷後 {value} 秒內所有我方角色對敵人攻擊無敵",
         baseValue: 0,       // 基礎值（0 表示沒有無敵）
         increment: 1,       // 每次升級增加 1 秒
         maxLevel: 5,

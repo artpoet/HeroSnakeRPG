@@ -95,7 +95,7 @@ window.UPGRADE_CONFIG = {
         name: "箭矢爆炸",
         description: "命中怪物後爆炸範圍 +{value} 像素，傷害 +{damage}",
         baseValue: 0,       // 基礎值（0 表示沒有爆炸）
-        increment: 20,      // 每次升級增加 20 像素範圍（從 10 加倍）
+        increment: 30,      // 每次升級增加 30 像素範圍（從 20 增加 10）
         damageIncrement: 5, // 每次升級增加 5 點傷害
         maxLevel: 5,
         icon: "archer.png",
@@ -117,7 +117,7 @@ window.UPGRADE_CONFIG = {
         description: "騎士可承受的攻擊次數 +{value}（初始為 1）",
         baseValue: 1,       // 基礎次數
         increment: 1,       // 每次升級增加的值
-        maxLevel: 10,
+        maxLevel: 5,        // 等級上限從 10 下修為 5
         icon: "knight.png",
       },
       deathBonus: {
@@ -132,7 +132,7 @@ window.UPGRADE_CONFIG = {
         name: "死亡爆炸",
         description: "騎士死亡時爆炸範圍 +{value} 像素，傷害 +{damage}",
         baseValue: 0,       // 基礎值（0 表示沒有爆炸）
-        increment: 30,      // 每次升級增加 30 像素範圍
+        increment: 40,      // 每次升級增加 40 像素範圍（從 30 增加 10）
         damageIncrement: 10, // 每次升級增加 10 點傷害
         maxLevel: 8,
         icon: "knight.png",

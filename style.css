@@ -556,6 +556,16 @@ canvas#minimap {
   width: 100%;
 }
 
+.death-reason {
+  color: #fca5a5; /* 淺紅色 */
+  font-size: 1rem;
+  margin: 0 0 10px 0;
+  font-style: italic;
+  text-align: center;
+  max-width: 80%;
+  line-height: 1.4;
+}
+
 .home-btn {
   padding: 16px 24px;
   border: none;
@@ -890,6 +900,7 @@ canvas#minimap {
     font-weight: bold;
     width: 100%;
     max-width: 300px;
+    cursor: pointer;
 }
 
 .game-over-buttons {

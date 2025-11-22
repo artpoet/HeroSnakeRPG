@@ -7,7 +7,7 @@
 */
 
 // 遊戲版本號
-const GAME_VERSION = "1.3.2";
+const GAME_VERSION = "1.3.12";
 
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
@@ -135,6 +135,46 @@ let upgradeLevels = {
 let unlockedAbilityTypes = new Set(); // 使用 Set 追蹤已解鎖的能力類型 (role.key 格式)
 let knightKillCounter = 0; // 騎士擊殺計數器（用於充能）
 let obstacles = []; // 障礙物（石頭）
+let deathReason = ""; // 死因
+
+// 死因幹話庫
+const DEATH_MESSAGES = {
+    self: [
+        "貪吃蛇的經典死法：自噬。",
+        "你的脖子還好嗎？",
+        "隊伍太長也是一種困擾。",
+        "你被自己的尾巴絆倒了。",
+        "這就是所謂的「自作自受」。"
+    ],
+    wall: [
+        "世界盡頭是沒有寶藏的。",
+        "牆壁好吃嗎？",
+        "勇者撞牆，這很合理。",
+        "這是一堵牆，不是隱藏門。",
+        "開車不看路，親人兩行淚。"
+    ],
+    obstacle: [
+        "那是一塊石頭，不是豆腐。",
+        "頭比較硬還是石頭比較硬？實驗證明是石頭。",
+        "障礙物：怪我囉？",
+        "眼中有路，心中無石。",
+        "你對石頭發起了衝鋒...效果拔群（對你自己）。"
+    ],
+    monster: [
+        "被怪物按在地上摩擦。",
+        "勇者被怪物擊敗了，大俠請重新來過。",
+        "血條歸零，人生重來。",
+        "怪物：今天的午餐有著落了。",
+        "你的HP不夠支付這場戰鬥的費用。"
+    ],
+    knight_sacrifice: [
+        "騎士：我盡力了...",
+        "騎士為了保護隊長而犧牲。",
+        "你撞到了騎士，但他沒能活下來。",
+        "這是一場悲劇性的車禍。",
+        "騎士表示：下次請看路好嗎？"
+    ]
+};
 
 // 資源載入
 let assetsLoaded = 0;
@@ -581,7 +621,20 @@ function spawnObstacles(count) {
         if (validPosition) {
             obstacles.push({
                 x: Math.floor(ox / GRID_SIZE), // 儲存網格座標
-                y: Math.floor(oy / GRID_SIZE)
+                y: Math.floor(oy / GRID_SIZE),
+                spawnTime: Date.now() // 記錄生成時間，用於動畫
+            });
+            
+            // 添加石頭出現特效（閃光效果，持續更久更明顯）
+            effects.push({
+                type: "obstacle-spawn",
+                x: ox, // 像素座標
+                y: oy,
+                radius: 0,
+                maxRadius: GRID_SIZE * 1.5, // 半徑變大
+                life: 60, // 持續時間變長 (1秒)
+                alpha: 1.0, // 更亮
+                color: "#9ca3af" // 灰色
             });
         }
     }
@@ -660,12 +713,18 @@ function moveSnake(timestamp) {
 
   // 邊界檢查 (World Bounds)
   if (nextX < 0 || nextX >= WORLD_WIDTH_GRIDS || nextY < 0 || nextY >= WORLD_HEIGHT_GRIDS) {
+    deathReason = "wall";
     triggerGameOver();
     return;
   }
 
   // 障礙物碰撞檢查 (石頭)
-  if (obstacles.some(o => o.x === nextX && o.y === nextY)) {
+  const SPAWN_PROTECTION_TIME = 2000; // 石頭生成保護期 (2秒)
+  if (obstacles.some(o => {
+      const elapsed = Date.now() - (o.spawnTime || 0);
+      return o.x === nextX && o.y === nextY && elapsed > SPAWN_PROTECTION_TIME;
+  })) {
+    deathReason = "obstacle";
     triggerGameOver();
     return;
   }
@@ -678,9 +737,11 @@ function moveSnake(timestamp) {
         if (knightIdx !== -1 && knightIdx !== i) {
             // 騎士犧牲... (這裡為簡化，暫時直接 GameOver，完整邏輯需參考原 script)
             // 為了重構重點在渲染，這裡先保留基本碰撞
+            deathReason = "knight_sacrifice"; // 特殊死因
             triggerGameOver(); 
             return;
         }
+        deathReason = "self";
         triggerGameOver();
         return;
     }
@@ -1015,8 +1076,75 @@ function updateEnemies(target) {
                 actualSpeed = actualSpeed * slowMultiplier;
             }
             
-            e.x += Math.cos(angle) * actualSpeed;
-            e.y += Math.sin(angle) * actualSpeed;
+            const nextX = e.x + Math.cos(angle) * actualSpeed;
+            const nextY = e.y + Math.sin(angle) * actualSpeed;
+            
+            // 檢查石頭碰撞 (簡單圓形與矩形碰撞)
+            let hitObstacle = false;
+            let bounceX = 0;
+            let bounceY = 0;
+            const enemyRadius = GRID_SIZE * 0.4; // 敵人碰撞半徑
+            const OBSTACLE_COOLDOWN = 500; // 500ms 冷卻
+            const SPAWN_PROTECTION_TIME = 2000; // 石頭生成保護期 (2秒)
+            
+            for (const obs of obstacles) {
+                // 檢查生成保護期
+                const elapsed = Date.now() - (obs.spawnTime || 0);
+                if (elapsed <= SPAWN_PROTECTION_TIME) continue; // 保護期內不產生碰撞
+                
+                const obsX = obs.x * GRID_SIZE;
+                const obsY = obs.y * GRID_SIZE;
+                
+                // 找出圓心最近的矩形點
+                const closestX = Math.max(obsX, Math.min(nextX, obsX + GRID_SIZE));
+                const closestY = Math.max(obsY, Math.min(nextY, obsY + GRID_SIZE));
+                
+                const distanceX = nextX - closestX;
+                const distanceY = nextY - closestY;
+                const distanceSq = distanceX * distanceX + distanceY * distanceY;
+                
+                // 如果距離小於半徑，則發生碰撞
+                if (distanceSq < (enemyRadius * enemyRadius)) {
+                    hitObstacle = true;
+                    
+                    // 檢查冷卻時間
+                    const currentTime = performance.now();
+                    if (!e.lastObstacleHitTime || currentTime - e.lastObstacleHitTime > OBSTACLE_COOLDOWN) {
+                        e.lastObstacleHitTime = currentTime;
+                        
+                        // 計算反彈方向 (從接觸點指向敵人中心)
+                        const dist = Math.sqrt(distanceSq);
+                        if (dist > 0) {
+                            bounceX = (distanceX / dist) * 10; // 輕微彈開 10px
+                            bounceY = (distanceY / dist) * 10;
+                        } else {
+                            // 如果完全重疊，隨機彈開
+                            const angle = Math.random() * Math.PI * 2;
+                            bounceX = Math.cos(angle) * 10;
+                            bounceY = Math.sin(angle) * 10;
+                        }
+                        
+                        // 添加短暫緩停（模擬阻擋感）
+                        e.stunTimer = 10; // 約 160ms
+                    } else {
+                        // 冷卻中，允許穿透（擠過去），不做任何位置修正
+                        hitObstacle = false;
+                    }
+                    break;
+                }
+            }
+            
+            if (hitObstacle) {
+                // 發生碰撞且未過冷卻，彈開並應用位置
+                // 注意：這裡我們實際上是在「阻擋」這次移動，並應用反彈
+                // 如果只是阻擋，怪物會停在原地。加上反彈會讓它退後一點。
+                e.x += bounceX;
+                e.y += bounceY;
+            } else {
+                // 沒有碰撞，或處於「擠過去」狀態，允許移動
+                e.x = nextX;
+                e.y = nextY;
+            }
         }
         
         if (e.hitTimer > 0) e.hitTimer--;
@@ -1070,6 +1198,7 @@ function updateEnemies(target) {
                         const enemyDamage = e.damage || 35;
                         leaderHP = Math.max(0, leaderHP - enemyDamage);
                         if (leaderHP <= 0) {
+                            deathReason = "monster";
                             triggerGameOver();
                             return;
                         }
@@ -1205,10 +1334,10 @@ function updateEnemies(target) {
                                             renderY: tail.y,
                                             targetRenderX: tail.x,
                                             targetRenderY: tail.y,
-                                            role: newRole,
+      role: newRole,
                                             facing: tail.facing,
                                             id: Date.now() + i,
-                                            lastShot: 0,
+      lastShot: 0,
                                             level: 1 // 初始等級為 1
                                         };
                                         // 如果是騎士，初始化 hitPoints
@@ -1342,7 +1471,6 @@ function checkLevelUp() {
         if (playerLevelValue > maxLevelThisRun) {
             maxLevelThisRun = playerLevelValue;
         }
-        spawnObstacles(3); // 每次升級生成 3 個障礙物
         updateLevelUI();
         showUpgradeSelection();
         checkLevelUp(); // 遞迴檢查是否還能再升級
@@ -1751,6 +1879,9 @@ function selectUpgrade(option) {
     
     upgradeOverlay.classList.add("hidden");
     isChoosingUpgrade = false;
+    
+    // 升級完成後生成石頭（特效會在生成時播放）
+    spawnObstacles(3);
 }
 
 // 更新能力類型 UI 顯示
@@ -1900,6 +2031,40 @@ function updateProjectiles() {
         if (proj.x < 0 || proj.y < 0 || proj.x > WORLD_WIDTH_PX || proj.y > WORLD_HEIGHT_PX) {
             projectilesToRemove.add(projIndex);
             return;
+        }
+        
+        // 檢查石頭碰撞 (石頭擋弓箭)
+        const SPAWN_PROTECTION_TIME = 2000; // 石頭生成保護期 (2秒)
+        for (const obs of obstacles) {
+            // 檢查生成保護期
+            const elapsed = Date.now() - (obs.spawnTime || 0);
+            if (elapsed <= SPAWN_PROTECTION_TIME) continue; // 保護期內不阻擋弓箭
+            
+            const obsX = obs.x * GRID_SIZE;
+            const obsY = obs.y * GRID_SIZE;
+            
+            // 簡單的點與矩形碰撞
+            if (proj.x >= obsX && proj.x <= obsX + GRID_SIZE &&
+                proj.y >= obsY && proj.y <= obsY + GRID_SIZE) {
+                
+                // 撞到石頭，移除弓箭，不觸發爆炸傷害（或可觸發小範圍火花）
+                projectilesToRemove.add(projIndex);
+                
+                // 添加一個撞擊特效
+                effects.push({
+                    type: "item-star", // 重用星星特效
+                    x: proj.x,
+                    y: proj.y,
+                    vx: (Math.random() - 0.5) * 2,
+                    vy: (Math.random() - 0.5) * 2,
+                    size: 3,
+                    alpha: 1,
+                    life: 10,
+                    color: "#d1d5db" // 灰色火花
+                });
+                
+                return;
+            }
         }
         
         // 檢查與隊伍成員碰撞（跳過發射者前幾幀）
@@ -2204,23 +2369,72 @@ function draw() {
   // 繪製障礙物 (石頭)
   ctx.fillStyle = "#6b7280"; // 灰色
   obstacles.forEach(o => {
-      // 檢查是否在視野內
+      // 檢查是否在視野內 (放寬判定範圍，避免邊緣消失)
       const px = o.x * GRID_SIZE;
       const py = o.y * GRID_SIZE;
-      if (px + GRID_SIZE < camera.x || px > camera.x + camera.width ||
-          py + GRID_SIZE < camera.y || py > camera.y + camera.height) {
+      const buffer = GRID_SIZE; // 增加一個格子的緩衝區
+      
+      if (px + GRID_SIZE < camera.x - buffer || px > camera.x + camera.width + buffer ||
+          py + GRID_SIZE < camera.y - buffer || py > camera.y + camera.height + buffer) {
           return; // 視野外剔除
       }
       
       const pos = camera.transform(px, py);
-      ctx.fillRect(pos.x + 2, pos.y + 2, GRID_SIZE - 4, GRID_SIZE - 4);
       
-      // 石頭立體感
-      ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
-      ctx.fillRect(pos.x + 2, pos.y + 2, GRID_SIZE - 4, 4); // 頂部高光
-      ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
-      ctx.fillRect(pos.x + 2, pos.y + GRID_SIZE - 6, GRID_SIZE - 4, 4); // 底部陰影
+      // 計算縮放動畫 (從 0 到 1，帶有彈性效果)
+      const spawnDuration = 1000; // 1秒動畫
+      const protectionTime = 2000; // 2秒保護期
+      const elapsed = Date.now() - (o.spawnTime || 0);
+      let scale = 1;
+      
+      if (elapsed < spawnDuration) {
+          const t = elapsed / spawnDuration;
+          // ElasticOut 效果
+          const p = 0.3;
+          scale = Math.pow(2, -10 * t) * Math.sin((t - p / 4) * (2 * Math.PI) / p) + 1;
+          if (t <= 0) scale = 0;
+      }
+      
+      // 保護期內半透明
+      if (elapsed < protectionTime) {
+          ctx.globalAlpha = 0.5;
+      } else {
+          ctx.globalAlpha = 1.0;
+      }
+      
+      // 應用縮放
+      const size = (GRID_SIZE - 4) * scale;
+      const offset = (GRID_SIZE - 4 - size) / 2;
+      
+      // 繪製石頭本體
+      ctx.fillStyle = "#6b7280"; // 灰色
+      ctx.fillRect(pos.x + 2 + offset, pos.y + 2 + offset, size, size);
+      
+      // 繪製紅色描邊 (危險！)
+      if (scale > 0.5) {
+          // 保護期內描邊也可以淡一點，或者保持明顯提示位置
+          ctx.strokeStyle = elapsed < protectionTime ? "rgba(239, 68, 68, 0.5)" : "#ef4444";
+          ctx.lineWidth = 2;
+          ctx.strokeRect(pos.x + 2 + offset, pos.y + 2 + offset, size, size);
+      }
+      
+      // 石頭立體感 (隨縮放調整)
+      if (scale > 0.1) {
+          ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+          ctx.fillRect(pos.x + 2 + offset, pos.y + 2 + offset, size, 4 * scale); // 頂部高光
+          ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+          ctx.fillRect(pos.x + 2 + offset, pos.y + 2 + offset + size - 4 * scale, size, 4 * scale); // 底部陰影
+      }
       ctx.fillStyle = "#6b7280"; // 還原顏色供下一個石頭使用
+      ctx.globalAlpha = 1.0; // 確保還原不透明度
+      
+      // DEBUG: 繪製原始碰撞框 (綠色細線)，用於診斷「隱形石頭」問題
+      // 只有在保護期過後才繪製，表示這裡是危險區域
+      if (elapsed > protectionTime) {
+          ctx.strokeStyle = "rgba(0, 255, 0, 0.3)";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(pos.x, pos.y, GRID_SIZE, GRID_SIZE);
+      }
   });
 
   // 3. 繪製世界邊界 (World Bounds)
@@ -2276,7 +2490,7 @@ function draw() {
           const mobAssetKey = `mob_${clampedLevel}`;
           if (ASSETS[mobAssetKey]) {
               ASSETS[mobAssetKey].draw(ctx, pos.x, pos.y, GRID_SIZE);
-    } else {
+  } else {
               // 如果圖片未載入，使用 fallback
               ctx.fillStyle = "#efefef";
               ctx.fillRect(pos.x, pos.y, GRID_SIZE, GRID_SIZE);
@@ -2611,7 +2825,7 @@ function draw() {
           ctx.arc(pos.x, pos.y, e.radius, 0, Math.PI * 2);
       ctx.fill();
           ctx.globalAlpha = e.alpha * 0.5 * (1 - progress);
-          ctx.stroke();
+      ctx.stroke();
           e.life--;
       } else if (e.type === "arrow-explosion") {
           // 弓箭爆炸特效 - 黃白色光圈，只有一兩圈，不透明一點
@@ -2623,7 +2837,7 @@ function draw() {
           ctx.globalAlpha = currentAlpha;
           ctx.strokeStyle = "#fbbf24"; // 更亮的黃色
           ctx.lineWidth = 4;
-          ctx.beginPath();
+      ctx.beginPath();
           ctx.arc(pos.x, pos.y, e.radius, 0, Math.PI * 2);
           ctx.stroke();
           
@@ -2632,7 +2846,28 @@ function draw() {
           ctx.fillStyle = "#fef3c7"; // 黃白色
           ctx.beginPath();
           ctx.arc(pos.x, pos.y, e.radius, 0, Math.PI * 2);
-          ctx.fill();
+      ctx.fill();
+          
+          e.life--;
+      } else if (e.type === "obstacle-spawn") {
+          // 石頭出現特效（閃光擴散，持續更久）
+          const progress = 1 - (e.life / 60); // 0 到 1 (life=60)
+          e.radius = e.maxRadius * progress;
+          ctx.globalAlpha = e.alpha * (1 - progress); // 逐漸淡出
+          
+          // 繪製外圈（描邊）
+          ctx.strokeStyle = e.color;
+          ctx.lineWidth = 4; // 加粗
+      ctx.beginPath();
+          ctx.arc(pos.x, pos.y, e.radius, 0, Math.PI * 2);
+      ctx.stroke();
+          
+          // 繪製內圈（填充，半透明）
+          ctx.globalAlpha = e.alpha * 0.4 * (1 - progress); // 稍微更亮
+          ctx.fillStyle = e.color;
+      ctx.beginPath();
+          ctx.arc(pos.x, pos.y, e.radius, 0, Math.PI * 2);
+      ctx.fill();
           
           e.life--;
       } else if (e.type === "item-star") {
@@ -3112,8 +3347,8 @@ function renderGuidePanel() {
     const guidePanel = document.getElementById("guidePanel");
     if (!guidePanel || !window.GUIDE_CONFIG) return;
 
-    const config = window.GUIDE_CONFIG;
-    
+  const config = window.GUIDE_CONFIG;
+  
     // 構建 Tab 按鈕
     let tabsHtml = "";
     if (config.tabs) {
@@ -3160,22 +3395,22 @@ function renderGuidePanel() {
         if (config.title && config.title.trim()) {
             contentHtml += `<h2>${escapeHtml(config.title)}</h2>`;
         }
-        if (config.intro) {
+  if (config.intro) {
             contentHtml += `<p>${escapeHtml(config.intro)}</p>`;
-        }
-        if (config.items && config.items.length > 0) {
+  }
+  if (config.items && config.items.length > 0) {
             contentHtml += `<ul class="icon-list">`;
-            config.items.forEach((item) => {
+    config.items.forEach((item) => {
                 contentHtml += `
-                    <li>
-                      <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.alt || "")}" />
-                      <div>
-                        <strong>${escapeHtml(item.name)}</strong>
-                        <p>${escapeHtml(item.description)}</p>
-                      </div>
-                    </li>
-                `;
-            });
+        <li>
+          <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.alt || "")}" />
+          <div>
+            <strong>${escapeHtml(item.name)}</strong>
+            <p>${escapeHtml(item.description)}</p>
+          </div>
+        </li>
+      `;
+    });
             contentHtml += `</ul>`;
         }
     }
@@ -3721,6 +3956,17 @@ if (pauseHomeBtn) {
 async function triggerGameOver() {
     isGameOver = true;
     gameOverOverlay.classList.remove("hidden");
+    
+    // 顯示死因幹話
+    const reasonText = document.getElementById("deathReasonText");
+    if (reasonText) {
+        // 如果沒有特定死因（如直接調用），預設為 "unknown" 或第一種
+        const key = deathReason || "self";
+        const messages = DEATH_MESSAGES[key] || DEATH_MESSAGES["self"];
+        const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+        reasonText.textContent = `死因：${randomMessage}`;
+    }
+
     document.getElementById("maxLengthValue").innerText = maxLengthThisRun;
     document.getElementById("finalKillValue").innerText = killCount;
     document.getElementById("maxLevelValue").innerText = maxLevelThisRun;

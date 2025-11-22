@@ -60,8 +60,8 @@ window.UPGRADE_CONFIG = {
         name: "施法傷害",
         description: "法師光環每幀傷害 +{value}",
         baseValue: 3,       // 基礎傷害（AURA_DAMAGE）
-        increment: 3,       // 每次升級增加的值
-        maxLevel: 5,
+        increment: 5,       // 每次升級增加的值（從 3 提升到 5）
+        maxLevel: 8,        // 最大等級從 5 提升到 8
         icon: "mage.png",
       },
       scaleBonus: {
@@ -170,14 +170,14 @@ window.UPGRADE_CONFIG = {
         name: "傷害",
         description: "隊長撞擊敵人傷害 +{value}",
         baseValue: 0,       // 基礎傷害（0 表示沒有傷害，需要實作）
-        increment: 5,       // 每次升級增加的值（從 1 改為 5）
+        increment: 10,      // 每次升級增加的值（從 5 提升到 10，增加誘惑力）
         maxLevel: 5,       // 最大等級保持 5
         icon: "leader.png",
       },
       moveSpeed: {
         name: "移動速度",
         description: "隊長移動速度提升（移動間隔減少 {value} 毫秒）",
-        baseValue: 180,     // 基礎移動間隔（GAME_SPEED，毫秒）- 與 index.html 中的 GAME_SPEED 保持一致
+        baseValue: 200,     // 基礎移動間隔（GAME_SPEED，毫秒）- 從 180 增加到 200，稍微變慢
         increment: -15,     // 每次升級減少的值（負數表示減少間隔，即加快速度）
         maxLevel: 5,        // 最大等級 5
         icon: "leader.png",

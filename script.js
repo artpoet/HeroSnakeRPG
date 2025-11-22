@@ -1,3 +1,11 @@
+/*
+  勇者貪食蛇 RPG
+  Copyright © 2025 Yupo Huang. All rights reserved.
+  
+  本遊戲及其所有代碼、資源、設計均為 Yupo Huang 的智慧財產權。
+  未經授權，不得複製、修改、分發或商業使用。
+*/
+
 // 遊戲版本號
 const GAME_VERSION = "1.3.2";
 

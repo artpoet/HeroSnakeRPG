@@ -1,3 +1,11 @@
+/*
+  勇者貪食蛇 RPG
+  Copyright © 2025 Yupo Huang. All rights reserved.
+  
+  本遊戲及其所有代碼、資源、設計均為 Yupo Huang 的智慧財產權。
+  未經授權，不得複製、修改、分發或商業使用。
+*/
+
 // 快速指引配置檔 - 企劃人員可直接修改此檔案
 // Guide Panel Configuration - Planners can modify this file directly
 

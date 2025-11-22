@@ -156,7 +156,3 @@ const GAME_SPEED = 150;
 - **配置文件**：`upgrade-config.js`、`enemy-spawn-config.js`、`guide-config.js`、`hero-quotes-config.js`
 - 詳細說明請參考 `docs/CHANGELOG.md` 的「程式結構說明」章節
 - **技術筆記**：開發過程中的重要問題和解決方案請參考 `docs/TECHNICAL-NOTES.md` ⭐
-
-## 授權
-
-本專案採 MIT License 授權，詳見 `LICENSE`。

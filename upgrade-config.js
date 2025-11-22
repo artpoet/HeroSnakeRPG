@@ -21,9 +21,9 @@ window.UPGRADE_CONFIG = {
     minLevel: 1,        // 最低等級
     maxLevel: 8,        // 最高等級（從 10 改為 8）
     baseHp: 20,         // 等級 1 的基礎血量
-    hpPerLevel: 30,     // 每級增加的血量（LV1: 20, LV8: 230，從 20 增加到 30，讓高等級怪物更強）
+    hpPerLevel: 45,     // 每級增加的血量（LV1: 20, LV8: 335，從 30 增加到 45，大幅提升強度）
     baseDamage: 35,     // 等級 1 的基礎傷害
-    damagePerLevel: 10,   // 每級增加的傷害（LV1: 35, LV8: 105，從 7 增加到 10，讓高等級怪物更強）
+    damagePerLevel: 15,   // 每級增加的傷害（LV1: 35, LV8: 140，從 10 增加到 15）
     baseExp: 10,        // 等級 1 的基礎經驗值（實際經驗值使用非線性公式計算）
   },
 
@@ -113,12 +113,12 @@ window.UPGRADE_CONFIG = {
 
     // 騎士升級
     knight: {
-      hitPoints: {
-        name: "可被攻擊次數",
-        description: "騎士可承受的攻擊次數 +{value}（初始為 1）",
-        baseValue: 1,       // 基礎次數
-        increment: 1,       // 每次升級增加的值
-        maxLevel: 5,        // 等級上限從 10 下修為 5
+      recharge: {
+        name: "聖光充能",
+        description: "每擊殺 10 隻怪物，回復騎士 {value} 點血量",
+        baseValue: 0,       // 基礎值
+        increment: 1,       // 每次升級增加回復量（Lv1恢復1點, Lv5恢復5點）
+        maxLevel: 5,
         icon: "knight.png",
       },
       deathBonus: {

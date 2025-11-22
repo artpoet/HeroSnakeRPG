@@ -308,6 +308,10 @@ canvas#minimap {
 }
 
 .name-input-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -320,13 +324,15 @@ canvas#minimap {
 }
 
 #homePlayerNameInput {
-  padding: 14px 16px;
-  border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  background: rgba(15, 23, 42, 0.8);
-  color: #f1f5f9;
-  font-size: 1rem;
-  width: 100%;
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    background: rgba(15, 23, 42, 0.8);
+    color: #f1f5f9;
+    font-size: 1rem;
+    width: 100%;
+    max-width: 300px;
+    text-align: center;
 }
 
 #homePlayerNameInput:focus {
@@ -398,19 +404,40 @@ canvas#minimap {
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+/* Game Over 標題置中 */
+.overlay-content > h2 {
+  text-align: center;
+  margin: 0 0 20px 0;
+  font-size: 1.5rem;
+  color: #4ade80;
+}
+
 .modal-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
   padding: 16px 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(0,0,0,0.2);
+  position: relative;
 }
 
 .modal-header h2 {
   margin: 0;
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   color: #4ade80;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 2px;
+  text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+  flex: 1;
+}
+
+.modal-header .modal-close {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .modal-close {
@@ -437,9 +464,17 @@ canvas#minimap {
   transform: scale(0.9);
 }
 
-.modal-body, .overlay-content {
+.modal-body {
   padding: 20px;
   overflow-y: auto;
+}
+
+.overlay-content {
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 /* ========== 遊戲說明樣式 ========== */
@@ -589,6 +624,8 @@ canvas#minimap {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    align-items: center;
+    width: 100%;
 }
 
 #playerNameInput {
@@ -597,6 +634,9 @@ canvas#minimap {
     border: 1px solid #475569;
     background: #0f172a;
     color: white;
+    width: 100%;
+    max-width: 300px;
+    text-align: center;
 }
 
 #uploadScoreBtn {
@@ -606,22 +646,39 @@ canvas#minimap {
     border: none;
     border-radius: 8px;
     font-weight: bold;
+    width: 100%;
+    max-width: 300px;
 }
 
 .game-over-buttons {
     display: flex;
+    flex-direction: column;
     gap: 10px;
     margin-top: 20px;
+    width: 100%;
+    align-items: center;
 }
 
 .game-over-btn {
-    flex: 1;
+    width: 100%;
+    max-width: 300px;
     padding: 12px;
     border-radius: 8px;
     border: 1px solid #475569;
     background: #1e293b;
     color: white;
     cursor: pointer;
+    font-size: 0.95rem;
+    transition: all 0.2s;
+}
+
+.game-over-btn:hover {
+    background: #334155;
+    border-color: #64748b;
+}
+
+.game-over-btn:active {
+    transform: scale(0.98);
 }
 
 /* 暫停 Modal 按鈕樣式 */
@@ -681,6 +738,39 @@ canvas#minimap {
 .leaderboard-list li {
     margin-bottom: 6px;
     font-size: 0.9rem;
+}
+
+.leaderboard-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.2);
+    align-items: center;
+    width: 100%;
+}
+
+.leaderboard-buttons .game-over-btn {
+    width: 100%;
+    max-width: 300px;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #475569;
+    background: #1e293b;
+    color: white;
+    cursor: pointer;
+    font-size: 0.95rem;
+    transition: all 0.2s;
+}
+
+.leaderboard-buttons .game-over-btn:hover {
+    background: #334155;
+    border-color: #64748b;
+}
+
+.leaderboard-buttons .game-over-btn:active {
+    transform: scale(0.98);
 }
 
 /* 倒數計時 */

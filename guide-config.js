@@ -2,11 +2,11 @@
 // Guide Panel Configuration - Planners can modify this file directly
 
 window.GUIDE_CONFIG = {
-  // 標題
-  title: "快速指引",
+  // 標題（移除快速指引）
+  title: "",
   
-  // 開場說明文字
-  intro: "下方圖鑑讓你在遊戲開始前就知道每位勇者的能力與敵人的樣貌。",
+  // 開場說明文字（改為操作方式，移到最前面）
+  intro: "操作方式：WASD / 方向鍵控制，或使用滑鼠/手指拖曳移動；保持隊伍迴旋可避開敵人。",
   
   // 角色/物品列表
   items: [
@@ -43,12 +43,12 @@ window.GUIDE_CONFIG = {
     {
       image: "item.png",
       alt: "道具圖示",
-      name: "招募道具",
+      name: "招募勇者",
       description: "吃到就會延長隊伍並隨機加入新職業。"
     }
   ],
   
-  // 操作提示文字
-  tip: "操作方式：WASD / 方向鍵控制；保持隊伍迴旋可避開敵人。"
+  // 操作提示文字（移除，已移到 intro）
+  tip: ""
 };
 

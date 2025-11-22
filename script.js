@@ -141,13 +141,13 @@ function createAsset(key, def) {
     draw(ctx, x, y, size, facing = 1) {
       if (this.loaded) {
         if (facing === -1) {
-            ctx.save();
-            ctx.translate(x + size, y);
-            ctx.scale(-1, 1);
-            ctx.drawImage(img, 0, 0, size, size);
-            ctx.restore();
+          ctx.save();
+          ctx.translate(x + size, y);
+          ctx.scale(-1, 1);
+          ctx.drawImage(img, 0, 0, size, size);
+          ctx.restore();
         } else {
-            ctx.drawImage(img, x, y, size, size);
+          ctx.drawImage(img, x, y, size, size);
         }
       } else {
         // Fallback drawing
@@ -342,13 +342,13 @@ function startGame() {
   const startY = Math.floor(WORLD_HEIGHT_GRIDS / 2);
   
   snake = [{
-    x: startX,
-    y: startY,
+      x: startX,
+      y: startY,
     renderX: startX,
-    renderY: startY,
+      renderY: startY,
     targetRenderX: startX,
     targetRenderY: startY,
-    role: "leader",
+      role: "leader",
     facing: 1,
     id: 0,
     lastShot: 0
@@ -449,7 +449,7 @@ function spawnEnemy() {
         attempts++;
     } while(attempts < 50);
 
-    enemies.push({
+  enemies.push({
         x: ex,
         y: ey,
         hp: config.hp,
@@ -457,8 +457,8 @@ function spawnEnemy() {
         damage: config.damage,
         exp: config.exp,
         level: level,
-        hitTimer: 0,
-        hpTextTimer: 0,
+    hitTimer: 0,
+    hpTextTimer: 0,
         lastAuraHit: 0, // 上次被法師光環傷害的時間戳記
         lastCollisionTime: 0 // 上次碰撞的時間戳記
     });
@@ -515,7 +515,7 @@ function moveSnake(timestamp) {
   const head = snake[0];
   const nextX = head.x + direction.x;
   const nextY = head.y + direction.y;
-  
+
   // 邊界檢查 (World Bounds)
   if (nextX < 0 || nextX >= WORLD_WIDTH_GRIDS || nextY < 0 || nextY >= WORLD_HEIGHT_GRIDS) {
     triggerGameOver();
@@ -824,7 +824,7 @@ function updateEnemies(target) {
                     s.hitTimer = 10; // 閃爍 10 幀
                     
                     // 受傷特效
-                    effects.push({
+        effects.push({
                         type: "leader-hit",
                         x: sx,
                         y: sy,
@@ -1442,7 +1442,7 @@ function draw() {
   
   // 4. 繪製道具（繪製所有道具）
   items.forEach(item => {
-      if (item) {
+  if (item) {
           const pos = camera.transform(item.x * GRID_SIZE, item.y * GRID_SIZE);
           // 檢查是否在畫面內 (Culling)
           if (pos.x > -GRID_SIZE && pos.x < canvas.width && pos.y > -GRID_SIZE && pos.y < canvas.height) {
@@ -1464,7 +1464,7 @@ function draw() {
           const mobAssetKey = `mob_${clampedLevel}`;
           if (ASSETS[mobAssetKey]) {
               ASSETS[mobAssetKey].draw(ctx, pos.x, pos.y, GRID_SIZE);
-          } else {
+    } else {
               // 如果圖片未載入，使用 fallback
               ctx.fillStyle = "#efefef";
               ctx.fillRect(pos.x, pos.y, GRID_SIZE, GRID_SIZE);
@@ -1540,7 +1540,7 @@ function draw() {
               }
           }
           
-          ctx.save();
+      ctx.save();
           ctx.globalAlpha = knightAlpha;
           ASSETS[assetKey].draw(ctx, pos.x, pos.y, GRID_SIZE, s.facing);
           ctx.restore();
@@ -1567,11 +1567,11 @@ function draw() {
                   ctx.globalAlpha = isActive ? 0.6 : 0.2; // 有敵人時更亮
                   ctx.strokeStyle = isActive ? "#93c5fd" : "#60a5fa"; // 有敵人時更亮的藍色
                   ctx.lineWidth = isActive ? 4 : 2; // 有敵人時線條更粗
-                  ctx.beginPath();
+      ctx.beginPath();
                   ctx.arc(auraPos.x, auraPos.y, auraRadius, 0, Math.PI * 2);
                   ctx.stroke();
-                  ctx.restore();
-              }
+      ctx.restore();
+    }
           }
       }
       
@@ -1586,19 +1586,19 @@ function draw() {
       const pos = camera.transform(proj.x, proj.y);
       // 檢查是否在畫面內
       if (pos.x > -GRID_SIZE && pos.x < canvas.width && pos.y > -GRID_SIZE && pos.y < canvas.height) {
-          ctx.strokeStyle = "#fbbf24";
-          ctx.lineWidth = 3;
-          ctx.beginPath();
+    ctx.strokeStyle = "#fbbf24";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
           ctx.moveTo(pos.x, pos.y);
           ctx.lineTo(pos.x - proj.vx * 2, pos.y - proj.vy * 2);
-          ctx.stroke();
+    ctx.stroke();
       }
   });
-  
+
   // 8. 繪製特效
   effects.forEach(e => {
       const pos = camera.transform(e.x, e.y);
-      ctx.save();
+    ctx.save();
       
       if (e.type === "text") {
           ctx.fillStyle = e.color;
@@ -1613,7 +1613,7 @@ function draw() {
           // 擊殺特效
           ctx.globalAlpha = e.alpha;
           ctx.fillStyle = "#fbbf24";
-          ctx.beginPath();
+      ctx.beginPath();
           ctx.arc(pos.x, pos.y, e.radius, 0, Math.PI * 2);
           ctx.fill();
           e.alpha -= 0.02;
@@ -1622,9 +1622,9 @@ function draw() {
           // 領隊受傷特效
           ctx.globalAlpha = e.alpha;
           ctx.fillStyle = "rgba(248, 113, 113, 0.5)";
-          ctx.beginPath();
+      ctx.beginPath();
           ctx.arc(pos.x, pos.y, e.radius, 0, Math.PI * 2);
-          ctx.fill();
+      ctx.fill();
           e.alpha -= 0.05;
           e.life--;
       } else if (e.type === "item-collect") {
@@ -1633,10 +1633,10 @@ function draw() {
           e.radius = e.maxRadius * progress;
           ctx.globalAlpha = e.alpha * (1 - progress); // 逐漸淡出
           ctx.strokeStyle = e.color;
-          ctx.lineWidth = 3;
-          ctx.beginPath();
+      ctx.lineWidth = 3;
+      ctx.beginPath();
           ctx.arc(pos.x, pos.y, e.radius, 0, Math.PI * 2);
-          ctx.stroke();
+      ctx.stroke();
           e.life--;
       } else if (e.type === "item-star") {
           // 道具收集星星粒子特效
@@ -1645,7 +1645,7 @@ function draw() {
           const starPos = camera.transform(e.x, e.y);
           ctx.globalAlpha = e.alpha;
           ctx.fillStyle = e.color;
-          ctx.beginPath();
+      ctx.beginPath();
           // 繪製小星星（五角星）
           const spikes = 5;
           const outerRadius = e.size;
@@ -1662,12 +1662,12 @@ function draw() {
               }
           }
           ctx.closePath();
-          ctx.fill();
+      ctx.fill();
           e.alpha -= 0.07; // 逐漸淡出
           e.life--;
       }
       
-      ctx.restore();
+    ctx.restore();
   });
   effects = effects.filter(e => e.life > 0);
   
@@ -1865,7 +1865,7 @@ function handleSwipeControl(clientX, clientY) {
             // 水平
             const newDir = { x: dx > 0 ? 1 : -1, y: 0 };
             if (newDir.x !== -direction.x) nextDirection = newDir;
-        } else {
+  } else {
             // 垂直
             const newDir = { x: 0, y: dy > 0 ? 1 : -1 };
             if (newDir.y !== -direction.y) nextDirection = newDir;
@@ -1999,115 +1999,139 @@ async function updateLeaderboard() {
     }
     
     try {
-        const leaderboardQuery = window.firebaseQuery(
-            window.firebaseLeaderboardRef,
-            window.firebaseOrderBy("kills", "desc"),
+    const leaderboardQuery = window.firebaseQuery(
+      window.firebaseLeaderboardRef,
+      window.firebaseOrderBy("kills", "desc"),
             window.firebaseLimit(100)
-        );
-        
-        const snapshot = await window.firebaseGetDocs(leaderboardQuery);
-        
-        const allData = [];
-        const todayData = [];
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        
-        snapshot.docs.forEach((doc) => {
-            const data = doc.data();
-            const record = {
-                name: data.name ?? "無名勇者",
-                kills: data.kills ?? 0,
-                score: data.score ?? 0,
-                date: data.date,
-            };
-            
-            allData.push(record);
-            
-            if (data.date) {
-                const recordDate = new Date(data.date);
-                if (recordDate >= today && recordDate < tomorrow) {
-                    todayData.push(record);
+    );
+    
+    const snapshot = await window.firebaseGetDocs(leaderboardQuery);
+    
+    const allData = [];
+    const todayData = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    snapshot.docs.forEach((doc) => {
+            try {
+      const data = doc.data();
+      const record = {
+        name: data.name ?? "無名勇者",
+        kills: data.kills ?? 0,
+        score: data.score ?? 0,
+        date: data.date,
+      };
+      
+      allData.push(record);
+      
+      if (data.date) {
+                    // 處理 Firestore Timestamp 或 Date 物件
+                    let recordDate;
+                    if (data.date.toDate) {
+                        // Firestore Timestamp
+                        recordDate = data.date.toDate();
+                    } else if (data.date instanceof Date) {
+                        // 已經是 Date 物件
+                        recordDate = data.date;
+                    } else {
+                        // 嘗試轉換為 Date
+                        recordDate = new Date(data.date);
+                    }
+                    
+                    // 檢查日期是否有效
+                    if (recordDate && !isNaN(recordDate.getTime())) {
+        if (recordDate >= today && recordDate < tomorrow) {
+          todayData.push(record);
+        }
+                    }
                 }
-            }
-        });
-        
-        renderLeaderboardList(leaderboardListAll, allData.slice(0, 5));
-        renderLeaderboardList(leaderboardListToday, todayData.slice(0, 5));
-    } catch (error) {
-        console.error("Leaderboard update failed", error);
-        if (leaderboardListAll) {
-            leaderboardListAll.innerHTML = "<li>排行榜載入失敗。</li>";
-        }
-        if (leaderboardListToday) {
-            leaderboardListToday.innerHTML = "<li>排行榜載入失敗。</li>";
-        }
+            } catch (err) {
+                // 跳過有問題的記錄，繼續處理其他記錄
+                console.warn("Error processing leaderboard record:", err);
+      }
+    });
+    
+    renderLeaderboardList(leaderboardListAll, allData.slice(0, 5));
+    renderLeaderboardList(leaderboardListToday, todayData.slice(0, 5));
+  } catch (error) {
+    console.error("Leaderboard update failed", error);
+    if (leaderboardListAll) {
+      leaderboardListAll.innerHTML = "<li>排行榜載入失敗。</li>";
     }
+    if (leaderboardListToday) {
+      leaderboardListToday.innerHTML = "<li>排行榜載入失敗。</li>";
+    }
+  }
 }
 
 function renderLeaderboardList(listElement, data) {
-    if (!listElement) return;
-    
-    if (data.length === 0) {
-        listElement.innerHTML = "<li>尚無紀錄，快來寫下第一筆吧！</li>";
-        return;
-    }
-    
-    listElement.innerHTML = "";
-    data.forEach((record) => {
-        const li = document.createElement("li");
-        li.innerHTML = `
-            <span class="lb-name">${escapeHtml(record.name)}</span>
-            <span class="lb-kills">${record.kills} 擊殺</span>
-            <span class="lb-score">${record.score} 格</span>
-        `;
-        listElement.appendChild(li);
-    });
+  if (!listElement) return;
+  
+  if (data.length === 0) {
+    listElement.innerHTML = "<li>尚無紀錄，快來寫下第一筆吧！</li>";
+    return;
+  }
+  
+  listElement.innerHTML = "";
+  data.forEach((record) => {
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <span class="lb-name">${escapeHtml(record.name)}</span>
+      <span class="lb-kills">${record.kills} 擊殺</span>
+      <span class="lb-score">${record.score} 格</span>
+    `;
+    listElement.appendChild(li);
+  });
 }
 
 function escapeHtml(text) {
-    if (!text) return "";
-    return text
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
+  if (!text) return "";
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 // ========== 遊戲說明渲染 ==========
 function renderGuidePanel() {
     const guidePanel = document.getElementById("guidePanel");
     if (!guidePanel || !window.GUIDE_CONFIG) return;
-    
-    const config = window.GUIDE_CONFIG;
-    
-    let html = `<h2>${escapeHtml(config.title || "快速指引")}</h2>`;
-    
-    if (config.intro) {
-        html += `<p>${escapeHtml(config.intro)}</p>`;
-    }
-    
-    if (config.items && config.items.length > 0) {
-        html += `<ul class="icon-list">`;
-        config.items.forEach((item) => {
-            html += `
-                <li>
-                    <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.alt || "")}" />
-                    <div>
-                        <strong>${escapeHtml(item.name)}</strong>
-                        <p>${escapeHtml(item.description)}</p>
-                    </div>
-                </li>
-            `;
-        });
-        html += `</ul>`;
-    }
-    
-    if (config.tip) {
-        html += `<p class="tip">${escapeHtml(config.tip)}</p>`;
-    }
-    
+
+  const config = window.GUIDE_CONFIG;
+  
+  let html = "";
+  
+  // 只顯示非空的標題
+  if (config.title && config.title.trim()) {
+    html += `<h2>${escapeHtml(config.title)}</h2>`;
+  }
+  
+  // 操作方式移到最前面（intro）
+  if (config.intro) {
+    html += `<p>${escapeHtml(config.intro)}</p>`;
+  }
+  
+  if (config.items && config.items.length > 0) {
+    html += `<ul class="icon-list">`;
+    config.items.forEach((item) => {
+      html += `
+        <li>
+          <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.alt || "")}" />
+          <div>
+            <strong>${escapeHtml(item.name)}</strong>
+            <p>${escapeHtml(item.description)}</p>
+          </div>
+        </li>
+      `;
+    });
+    html += `</ul>`;
+  }
+  
+  // 不再顯示 tip（已移到 intro）
+  
     guidePanel.innerHTML = html;
 }
 
@@ -2116,8 +2140,25 @@ const homeLeaderboardBtn = document.getElementById("homeLeaderboardBtn");
 if (homeLeaderboardBtn) {
     homeLeaderboardBtn.addEventListener("click", () => {
         if (leaderboardModal) {
+            // 從首頁打開，隱藏重新開始按鈕和回主選單按鈕（使用 X 關閉）
+            const leaderboardRestartBtn = document.getElementById("leaderboardRestartBtn");
+            const leaderboardHomeBtn = document.getElementById("leaderboardHomeBtn");
+            if (leaderboardRestartBtn) {
+                leaderboardRestartBtn.style.display = "none";
+            }
+            if (leaderboardHomeBtn) {
+                leaderboardHomeBtn.style.display = "none";
+            }
+            
             leaderboardModal.classList.remove("hidden");
-            updateLeaderboard();
+            // 使用 try-catch 避免錯誤導致當機
+            try {
+                updateLeaderboard().catch(err => {
+                    console.error("Leaderboard update error:", err);
+                });
+            } catch (err) {
+                console.error("Leaderboard update error:", err);
+            }
         }
     });
 }
@@ -2128,7 +2169,7 @@ if (homeGuideBtn) {
     homeGuideBtn.addEventListener("click", () => {
         if (guideModal) {
             guideModal.classList.remove("hidden");
-            renderGuidePanel();
+    renderGuidePanel();
         }
     });
 }
@@ -2139,7 +2180,7 @@ if (guideBtn) {
         isPaused = true;
         if (guideModal) {
             guideModal.classList.remove("hidden");
-            renderGuidePanel();
+  renderGuidePanel();
         }
     });
 }
@@ -2158,27 +2199,74 @@ if (leaderboardBtn) {
     leaderboardBtn.addEventListener("click", () => {
         isPaused = true;
         if (leaderboardModal) {
+            // 從遊戲中打開，隱藏重新開始按鈕和回主選單按鈕（使用 X 關閉）
+            const leaderboardRestartBtn = document.getElementById("leaderboardRestartBtn");
+            const leaderboardHomeBtn = document.getElementById("leaderboardHomeBtn");
+            if (leaderboardRestartBtn) {
+                leaderboardRestartBtn.style.display = "none";
+            }
+            if (leaderboardHomeBtn) {
+                leaderboardHomeBtn.style.display = "none";
+            }
+            
             leaderboardModal.classList.remove("hidden");
-            updateLeaderboard();
+            // 使用 try-catch 避免錯誤導致當機
+            try {
+                updateLeaderboard().catch(err => {
+                    console.error("Leaderboard update error:", err);
+                });
+            } catch (err) {
+                console.error("Leaderboard update error:", err);
+            }
         }
     });
 }
 
 // Modal 關閉按鈕
-const leaderboardCloseBtn = document.getElementById("leaderboardCloseBtn");
 const guideCloseBtn = document.getElementById("guideCloseBtn");
+const leaderboardCloseBtn = document.getElementById("leaderboardCloseBtn");
+
 
 if (leaderboardCloseBtn) {
     leaderboardCloseBtn.addEventListener("click", () => {
         if (leaderboardModal) {
             leaderboardModal.classList.add("hidden");
         }
-        // 檢查是否還有其他 Modal 打開
-        if (!pauseModal || pauseModal.classList.contains("hidden")) {
-            if (!guideModal || guideModal.classList.contains("hidden")) {
-                isPaused = false;
-            }
+        // 如果遊戲還在進行，恢復遊戲
+        if (!isGameOver && isPaused) {
+            isPaused = false;
+            startCountdown();
         }
+    });
+}
+
+// 排行榜按鈕（重新開始和回主選單）
+const leaderboardRestartBtn = document.getElementById("leaderboardRestartBtn");
+const leaderboardHomeBtn = document.getElementById("leaderboardHomeBtn");
+
+if (leaderboardRestartBtn) {
+    leaderboardRestartBtn.addEventListener("click", () => {
+        if (leaderboardModal) {
+            leaderboardModal.classList.add("hidden");
+        }
+        // 重置遊戲狀態
+        isPaused = false;
+        isGameOver = false;
+        // 重新開始遊戲
+        startGame();
+    });
+}
+
+if (leaderboardHomeBtn) {
+    leaderboardHomeBtn.addEventListener("click", () => {
+        if (leaderboardModal) {
+            leaderboardModal.classList.add("hidden");
+        }
+        // 重置遊戲狀態
+        isPaused = false;
+        isGameOver = false;
+        // 重新載入頁面回到主選單
+        window.location.reload();
     });
 }
 
@@ -2187,10 +2275,13 @@ if (guideCloseBtn) {
         if (guideModal) {
             guideModal.classList.add("hidden");
         }
-        // 檢查是否還有其他 Modal 打開
+        // 檢查是否還有其他 Modal 打開，如果沒有且遊戲還在進行，開始倒數
         if (!pauseModal || pauseModal.classList.contains("hidden")) {
             if (!leaderboardModal || leaderboardModal.classList.contains("hidden")) {
-                isPaused = false;
+                // 如果遊戲還在進行（非遊戲結束狀態），開始倒數
+                if (!isGameOver && isPaused) {
+                    startCountdown();
+                }
             }
         }
     });
@@ -2224,7 +2315,7 @@ if (pauseHomeBtn) {
     });
 }
 
-function triggerGameOver() {
+async function triggerGameOver() {
     isGameOver = true;
     gameOverOverlay.classList.remove("hidden");
     document.getElementById("maxLengthValue").innerText = maxLengthThisRun;
@@ -2234,15 +2325,153 @@ function triggerGameOver() {
     // 從 localStorage 讀取勇者名並填入輸入框
     const playerNameInput = document.getElementById("playerNameInput");
     if (playerNameInput) {
-        const savedName = localStorage.getItem("playerName");
+  const savedName = localStorage.getItem("playerName");
         if (savedName) {
             playerNameInput.value = savedName;
         }
+    }
+    
+    // 清空上傳狀態訊息
+    const uploadStatus = document.getElementById("uploadStatus");
+    if (uploadStatus) {
+        uploadStatus.textContent = "";
+    }
+    
+    // 檢查是否進入今日前五名，決定是否顯示上傳按鈕
+    const uploadForm = document.querySelector(".upload-form");
+    const uploadScoreBtn = document.getElementById("uploadScoreBtn");
+    const gameOverLeaderboardBtn = document.getElementById("gameOverLeaderboardBtn");
+    
+    if (uploadForm && uploadScoreBtn) {
+        try {
+            // 獲取今日排行榜前五名
+            const todayData = await getTodayLeaderboardTop5();
+            
+            // 如果今日記錄少於 5 筆，或者擊殺數大於等於第 5 名的擊殺數，則顯示上傳按鈕
+            const canUpload = todayData.length < 5 || killCount >= (todayData[todayData.length - 1]?.kills || 0);
+            
+            if (canUpload) {
+                uploadForm.style.display = "flex";
+                uploadScoreBtn.style.display = "block";
+                // 隱藏排行榜按鈕
+                if (gameOverLeaderboardBtn) {
+                    gameOverLeaderboardBtn.style.display = "none";
+                }
+            } else {
+                uploadForm.style.display = "none";
+                uploadScoreBtn.style.display = "none";
+                // 顯示排行榜按鈕
+                if (gameOverLeaderboardBtn) {
+                    gameOverLeaderboardBtn.style.display = "block";
+                }
+            }
+        } catch (error) {
+            // 如果獲取排行榜失敗，預設顯示上傳按鈕（允許上傳）
+            console.warn("Failed to check leaderboard, showing upload button:", error);
+            if (uploadForm) uploadForm.style.display = "flex";
+            if (uploadScoreBtn) uploadScoreBtn.style.display = "block";
+            if (gameOverLeaderboardBtn) {
+                gameOverLeaderboardBtn.style.display = "none";
+            }
+        }
+    }
+}
+
+// 獲取今日排行榜前五名
+async function getTodayLeaderboardTop5() {
+    if (!window.firebaseLeaderboardRef || !window.firebaseGetDocs) {
+        return [];
+    }
+    
+    try {
+        const leaderboardQuery = window.firebaseQuery(
+            window.firebaseLeaderboardRef,
+            window.firebaseOrderBy("kills", "desc"),
+            window.firebaseLimit(100)
+        );
+        
+        const snapshot = await window.firebaseGetDocs(leaderboardQuery);
+        
+        const todayData = [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        
+        snapshot.docs.forEach((doc) => {
+            try {
+                const data = doc.data();
+                if (data.date) {
+                    let recordDate;
+                    if (data.date.toDate) {
+                        recordDate = data.date.toDate();
+                    } else if (data.date instanceof Date) {
+                        recordDate = data.date;
+                    } else {
+                        recordDate = new Date(data.date);
+                    }
+                    
+                    if (recordDate && !isNaN(recordDate.getTime())) {
+                        if (recordDate >= today && recordDate < tomorrow) {
+                            todayData.push({
+                                kills: data.kills ?? 0,
+                                score: data.score ?? 0,
+                            });
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn("Error processing leaderboard record:", err);
+            }
+        });
+        
+        // 按擊殺數排序並取前五名
+        todayData.sort((a, b) => b.kills - a.kills);
+        return todayData.slice(0, 5);
+    } catch (error) {
+        console.error("Failed to get today leaderboard:", error);
+        return [];
     }
 }
 
 document.getElementById("restartBtn").addEventListener("click", startGame);
 document.getElementById("homeBtn").addEventListener("click", () => window.location.reload());
+
+// Game Over 排行榜按鈕
+const gameOverLeaderboardBtn = document.getElementById("gameOverLeaderboardBtn");
+if (gameOverLeaderboardBtn) {
+    gameOverLeaderboardBtn.addEventListener("click", () => {
+        // 關閉 Game Over Modal
+        if (gameOverOverlay) {
+            gameOverOverlay.classList.add("hidden");
+        }
+        // 確保遊戲狀態正確
+        isGameOver = true;
+        isPaused = true;
+        // 顯示排行榜 Modal
+        if (leaderboardModal) {
+            // 從死亡時打開，顯示重新開始按鈕，隱藏回主選單按鈕（使用 X 關閉）
+            const leaderboardRestartBtn = document.getElementById("leaderboardRestartBtn");
+            const leaderboardHomeBtn = document.getElementById("leaderboardHomeBtn");
+            if (leaderboardRestartBtn) {
+                leaderboardRestartBtn.style.display = "block";
+            }
+            if (leaderboardHomeBtn) {
+                leaderboardHomeBtn.style.display = "none";
+            }
+            
+            leaderboardModal.classList.remove("hidden");
+            // 更新排行榜內容
+            try {
+                updateLeaderboard().catch(err => {
+                    console.error("Leaderboard update error:", err);
+                });
+            } catch (err) {
+                console.error("Leaderboard update error:", err);
+            }
+        }
+    });
+}
 
 // ========== 上傳分數功能 ==========
 const uploadScoreBtn = document.getElementById("uploadScoreBtn");
@@ -2253,13 +2482,13 @@ if (uploadScoreBtn) {
         const nameInput = document.getElementById("playerNameInput");
         const name = nameInput ? nameInput.value.trim() : "";
         
-        if (!name) {
+    if (!name) {
             if (uploadStatus) {
                 uploadStatus.textContent = "請輸入勇者名";
                 uploadStatus.style.color = "#ef4444";
-            }
-            return;
-        }
+      }
+      return;
+    }
         
         if (!window.firebaseReady || !window.firebaseAddDoc || !window.firebaseLeaderboardRef) {
             if (uploadStatus) {
@@ -2277,8 +2506,8 @@ if (uploadScoreBtn) {
             return;
         }
         
-        // 保存名字
-        localStorage.setItem("playerName", name);
+    // 保存名字
+    localStorage.setItem("playerName", name);
         
         // 上傳分數
         if (uploadStatus) {
@@ -2299,22 +2528,42 @@ if (uploadScoreBtn) {
                 timestamp: Date.now()
             });
             
-            if (uploadStatus) {
-                uploadStatus.textContent = "上傳成功！";
-                uploadStatus.style.color = "#4ade80";
-            }
-            
-            // 上傳成功後自動顯示排行榜
+            // 上傳成功後自動顯示排行榜（不顯示"上傳成功"訊息）
             if (leaderboardModal) {
+                // 清空上傳狀態訊息
+                if (uploadStatus) {
+                    uploadStatus.textContent = "";
+                }
+                
                 // 關閉 Game Over Modal
                 const gameOverOverlay = document.getElementById("gameOverOverlay");
                 if (gameOverOverlay) {
                     gameOverOverlay.classList.add("hidden");
                 }
+                // 確保遊戲狀態正確（停止遊戲循環）
+                isGameOver = true;
+                isPaused = true;
                 // 顯示排行榜 Modal
+                // 從死亡時打開，顯示重新開始按鈕，隱藏回主選單按鈕（使用 X 關閉）
+                const leaderboardRestartBtn = document.getElementById("leaderboardRestartBtn");
+                const leaderboardHomeBtn = document.getElementById("leaderboardHomeBtn");
+                if (leaderboardRestartBtn) {
+                    leaderboardRestartBtn.style.display = "block";
+                }
+                if (leaderboardHomeBtn) {
+                    leaderboardHomeBtn.style.display = "none";
+                }
+                
                 leaderboardModal.classList.remove("hidden");
-                // 更新排行榜內容
-                updateLeaderboard();
+                // 更新排行榜內容（使用 try-catch 避免錯誤導致當機）
+                try {
+                    updateLeaderboard().catch(err => {
+                        console.error("Leaderboard update error:", err);
+                        // 即使更新失敗，也不影響顯示
+                    });
+                } catch (err) {
+                    console.error("Leaderboard update error:", err);
+                }
             }
         } catch (error) {
             console.error("Upload failed", error);

@@ -1,5 +1,5 @@
 // 遊戲版本號
-const GAME_VERSION = "1.2.1";
+const GAME_VERSION = "1.3.2";
 
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
@@ -126,6 +126,7 @@ let upgradeLevels = {
 // 能力類型追蹤（追蹤已解鎖的能力類型）
 let unlockedAbilityTypes = new Set(); // 使用 Set 追蹤已解鎖的能力類型 (role.key 格式)
 let knightKillCounter = 0; // 騎士擊殺計數器（用於充能）
+let obstacles = []; // 障礙物（石頭）
 
 // 資源載入
 let assetsLoaded = 0;
@@ -395,6 +396,7 @@ function startGame() {
   projectiles = [];
   effects = [];
   items = [];
+  obstacles = []; // 清空障礙物
   // 初始化多個道具
   for (let i = 0; i < MAX_ITEMS; i++) {
     items.push(spawnItem());
@@ -524,6 +526,59 @@ function spawnEnemy() {
     });
 }
 
+function spawnObstacles(count) {
+    for (let i = 0; i < count; i++) {
+        let ox, oy;
+        let attempts = 0;
+        let validPosition = false;
+        
+        // 隊長位置
+        const head = snake[0];
+        
+        while (attempts < 100 && !validPosition) {
+            // 隨機網格座標
+            const gx = Math.floor(Math.random() * WORLD_WIDTH_GRIDS);
+            const gy = Math.floor(Math.random() * WORLD_HEIGHT_GRIDS);
+            
+            ox = gx * GRID_SIZE + GRID_SIZE/2; // 中心點像素座標
+            oy = gy * GRID_SIZE + GRID_SIZE/2;
+            
+            // 檢查是否與蛇重疊
+            const snakeConflict = snake.some(s => s.x === gx && s.y === gy);
+            
+            // 檢查是否與其他障礙物重疊
+            const obstacleConflict = obstacles.some(o => o.x === gx && o.y === gy);
+            
+            // 檢查是否與食物重疊
+            const itemConflict = items.some(item => {
+                const itemGx = Math.floor(item.x / GRID_SIZE);
+                const itemGy = Math.floor(item.y / GRID_SIZE);
+                return itemGx === gx && itemGy === gy;
+            });
+            
+            // 檢查是否在隊長周圍 5 格內
+            const distToHead = Math.abs(gx - head.x) + Math.abs(gy - head.y); // 曼哈頓距離
+            const nearHead = distToHead <= 5;
+            
+            // 如果嘗試次數過多，放寬對「遠離隊長」的限制
+            if (!snakeConflict && !obstacleConflict && !itemConflict) {
+                if (!nearHead || attempts > 80) {
+                    validPosition = true;
+                }
+            }
+            
+            attempts++;
+        }
+        
+        if (validPosition) {
+            obstacles.push({
+                x: Math.floor(ox / GRID_SIZE), // 儲存網格座標
+                y: Math.floor(oy / GRID_SIZE)
+            });
+        }
+    }
+}
+
 // 敵人屬性計算 (保留原邏輯的核心)
 function calculateEnemyLevel() {
     if (!window.ENEMY_SPAWN_CONFIG) return 1;
@@ -597,6 +652,12 @@ function moveSnake(timestamp) {
 
   // 邊界檢查 (World Bounds)
   if (nextX < 0 || nextX >= WORLD_WIDTH_GRIDS || nextY < 0 || nextY >= WORLD_HEIGHT_GRIDS) {
+    triggerGameOver();
+    return;
+  }
+
+  // 障礙物碰撞檢查 (石頭)
+  if (obstacles.some(o => o.x === nextX && o.y === nextY)) {
     triggerGameOver();
     return;
   }
@@ -1273,6 +1334,7 @@ function checkLevelUp() {
         if (playerLevelValue > maxLevelThisRun) {
             maxLevelThisRun = playerLevelValue;
         }
+        spawnObstacles(3); // 每次升級生成 3 個障礙物
         updateLevelUI();
         showUpgradeSelection();
         checkLevelUp(); // 遞迴檢查是否還能再升級
@@ -1541,8 +1603,10 @@ function createUpgradeOptionElement(option, index) {
     
     if (option.isMaxed) {
         level.textContent = "Lv MAX";
-        // 滿級時，描述改為隊長最大血量+1
-        desc.textContent = "隊長最大血量 +1";
+        // 滿級時，描述改為隊長最大血量額外 +1 (+1)，+1 要綠色
+        const config = window.UPGRADE_CONFIG?.maxedOutBonus || { hpIncrease: 1 };
+        const hpIncrease = config.hpIncrease || 1;
+        desc.innerHTML = `隊長最大血量額外 <span style="color: #4ade80; font-weight: bold;">+${hpIncrease}</span> <span style="color: #94a3b8; font-size: 0.9em;">(+${hpIncrease})</span>`;
     } else {
         level.textContent = `Lv ${option.currentLevel} / ${option.upgrade.maxLevel}`;
         
@@ -1882,8 +1946,8 @@ function updateProjectiles() {
                         radius: 0,
                         maxRadius: explosionRange,
                         life: 15,
-                        alpha: 0.7,
-                        color: "#22c55e" // 綠色
+                        alpha: 0.9, // 提高不透明度，讓範圍更清楚
+                        color: "#fef3c7" // 黃白色
                     });
                 }
                 
@@ -2129,6 +2193,28 @@ function draw() {
   }
   ctx.stroke();
   
+  // 繪製障礙物 (石頭)
+  ctx.fillStyle = "#6b7280"; // 灰色
+  obstacles.forEach(o => {
+      // 檢查是否在視野內
+      const px = o.x * GRID_SIZE;
+      const py = o.y * GRID_SIZE;
+      if (px + GRID_SIZE < camera.x || px > camera.x + camera.width ||
+          py + GRID_SIZE < camera.y || py > camera.y + camera.height) {
+          return; // 視野外剔除
+      }
+      
+      const pos = camera.transform(px, py);
+      ctx.fillRect(pos.x + 2, pos.y + 2, GRID_SIZE - 4, GRID_SIZE - 4);
+      
+      // 石頭立體感
+      ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+      ctx.fillRect(pos.x + 2, pos.y + 2, GRID_SIZE - 4, 4); // 頂部高光
+      ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+      ctx.fillRect(pos.x + 2, pos.y + GRID_SIZE - 6, GRID_SIZE - 4, 4); // 底部陰影
+      ctx.fillStyle = "#6b7280"; // 還原顏色供下一個石頭使用
+  });
+
   // 3. 繪製世界邊界 (World Bounds)
   const boundRect = camera.transform(0, 0);
   ctx.strokeStyle = "#ef4444"; // 危險紅
@@ -2520,15 +2606,26 @@ function draw() {
           ctx.stroke();
           e.life--;
       } else if (e.type === "arrow-explosion") {
-          // 弓箭爆炸特效
+          // 弓箭爆炸特效 - 黃白色光圈，只有一兩圈，不透明一點
           const progress = 1 - (e.life / 15); // 0 到 1
           e.radius = e.maxRadius * progress;
-          ctx.globalAlpha = e.alpha * (1 - progress); // 逐漸淡出
-          ctx.strokeStyle = e.color;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
+          const currentAlpha = e.alpha * (1 - progress * 0.5); // 淡出速度減慢，保持更長時間可見
+          
+          // 繪製外圈（描邊，較粗）
+          ctx.globalAlpha = currentAlpha;
+          ctx.strokeStyle = "#fbbf24"; // 更亮的黃色
+          ctx.lineWidth = 4;
+          ctx.beginPath();
           ctx.arc(pos.x, pos.y, e.radius, 0, Math.PI * 2);
-      ctx.stroke();
+          ctx.stroke();
+          
+          // 繪製內圈（填充，更透明，讓範圍清楚可見但不那麼滿）
+          ctx.globalAlpha = currentAlpha * 0.15; // 從 0.4 降低到 0.15，讓填充更透明
+          ctx.fillStyle = "#fef3c7"; // 黃白色
+          ctx.beginPath();
+          ctx.arc(pos.x, pos.y, e.radius, 0, Math.PI * 2);
+          ctx.fill();
+          
           e.life--;
       } else if (e.type === "item-star") {
           // 道具收集星星粒子特效
@@ -3751,11 +3848,22 @@ if (gameOverLeaderboardBtn) {
             // 從死亡時打開，顯示重新開始按鈕，隱藏回主選單按鈕（使用 X 關閉）
             const leaderboardRestartBtn = document.getElementById("leaderboardRestartBtn");
             const leaderboardHomeBtn = document.getElementById("leaderboardHomeBtn");
+            const leaderboardAbilitiesBtn = document.getElementById("leaderboardAbilitiesBtn");
+            const leaderboardCloseBtn = document.getElementById("leaderboardCloseBtn");
+            
             if (leaderboardRestartBtn) {
                 leaderboardRestartBtn.style.display = "block";
             }
             if (leaderboardHomeBtn) {
-                leaderboardHomeBtn.style.display = "none";
+                leaderboardHomeBtn.style.display = "block"; // Game Over 時顯示回主選單
+            }
+            if (leaderboardAbilitiesBtn) {
+                leaderboardAbilitiesBtn.style.display = "block";
+            }
+            
+            // Game Over 時隱藏 X 按鈕
+            if (leaderboardCloseBtn) {
+                leaderboardCloseBtn.style.display = "none";
             }
             
             leaderboardModal.classList.remove("hidden");
@@ -3768,6 +3876,36 @@ if (gameOverLeaderboardBtn) {
                 console.error("Leaderboard update error:", err);
             }
         }
+    });
+}
+
+// 排行榜中的「查看能力」按鈕
+const leaderboardAbilitiesBtn = document.getElementById("leaderboardAbilitiesBtn");
+if (leaderboardAbilitiesBtn) {
+    leaderboardAbilitiesBtn.addEventListener("click", () => {
+        // 暫時隱藏排行榜，顯示能力 Modal
+        if (leaderboardModal) leaderboardModal.classList.add("hidden");
+        
+        // 顯示能力 Modal
+        showCurrentAbilities();
+        
+        // 修改能力 Modal 的關閉行為：關閉時回到排行榜
+        const closeBtn = document.getElementById("currentAbilitiesCloseBtn");
+        
+        // 使用一次性事件處理回到排行榜
+        const returnToLeaderboard = () => {
+            if (isGameOver) {
+                if (leaderboardModal) {
+                    leaderboardModal.classList.remove("hidden");
+                    // 確保 X 按鈕仍然隱藏
+                    const leaderboardCloseBtn = document.getElementById("leaderboardCloseBtn");
+                    if (leaderboardCloseBtn) leaderboardCloseBtn.style.display = "none";
+                }
+            }
+            closeBtn.removeEventListener("click", returnToLeaderboard);
+        };
+        
+        closeBtn.addEventListener("click", returnToLeaderboard);
     });
 }
 

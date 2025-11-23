@@ -1063,15 +1063,18 @@ function gameLoop(timestamp) {
           s.renderY = s.startRenderY + (s.targetRenderY - s.startRenderY) * moveProgress;
           
           // 應用回彈速度（如果存在）- 回彈效果疊加在平滑移動上
-          if (s.bounceVx !== undefined && s.bounceVx !== 0) {
-              s.renderX += s.bounceVx;
-              s.bounceVx *= 0.95; // 更快衰減
-              if (Math.abs(s.bounceVx) < 0.001) s.bounceVx = 0;
-          }
-          if (s.bounceVy !== undefined && s.bounceVy !== 0) {
-              s.renderY += s.bounceVy;
-              s.bounceVy *= 0.95; // 更快衰減
-              if (Math.abs(s.bounceVy) < 0.001) s.bounceVy = 0;
+          // 死亡期間不要回彈，避免撞牆時視覺上往反方向彈
+          if (!isPlayerDying) {
+              if (s.bounceVx !== undefined && s.bounceVx !== 0) {
+                  s.renderX += s.bounceVx;
+                  s.bounceVx *= 0.95; // 更快衰減
+                  if (Math.abs(s.bounceVx) < 0.001) s.bounceVx = 0;
+              }
+              if (s.bounceVy !== undefined && s.bounceVy !== 0) {
+                  s.renderY += s.bounceVy;
+                  s.bounceVy *= 0.95; // 更快衰減
+                  if (Math.abs(s.bounceVy) < 0.001) s.bounceVy = 0;
+              }
           }
           
           // 限制 renderX/Y 在邊界內，避免在邊界附近時視覺不協調
@@ -2604,41 +2607,43 @@ function draw() {
           if (pos.x > -GRID_SIZE && pos.x < camera.width && pos.y > -GRID_SIZE && pos.y < camera.height) {
               ASSETS.item.draw(ctx, pos.x, pos.y, GRID_SIZE);
               
-              // 繪製職業文字 (弓/法/騎)
-              if (item.role) {
-                  ctx.save();
-                  ctx.font = "bold 12px sans-serif";
-                  ctx.textAlign = "center";
-                  ctx.textBaseline = "top";
-                  
-                  let roleText = "";
-                  let roleColor = "#ffffff";
-                  
-                  if (item.role === "archer") {
-                      roleText = "弓";
-                      roleColor = "#90ee90"; // 淺綠色
-                  } else if (item.role === "mage") {
-                      roleText = "法";
-                      roleColor = "#60a5fa"; // 淺藍色
-                  } else if (item.role === "knight") {
-                      roleText = "騎";
-                      roleColor = "#fbbf24"; // 黃色
-                  }
-                  
-                  if (roleText) {
-                      // 深色描邊
-                      ctx.strokeStyle = "rgba(0, 0, 0, 0.8)";
-                      ctx.lineWidth = 2;
-                      ctx.lineJoin = "round";
-                      ctx.miterLimit = 2;
-                      ctx.strokeText(roleText, pos.x + GRID_SIZE/2, pos.y + GRID_SIZE - 5);
-                      
-                      // 填充顏色
-                      ctx.fillStyle = roleColor;
-                      ctx.fillText(roleText, pos.x + GRID_SIZE/2, pos.y + GRID_SIZE - 5);
-                  }
-                  ctx.restore();
+              // 繪製職業文字 (弓/法/騎/全)
+              ctx.save();
+              ctx.font = "bold 12px sans-serif";
+              ctx.textAlign = "center";
+              ctx.textBaseline = "top";
+              
+              let roleText = "";
+              let roleColor = "#ffffff";
+              
+              if (item.role === "archer") {
+                  roleText = "弓";
+                  roleColor = "#90ee90"; // 淺綠色
+              } else if (item.role === "mage") {
+                  roleText = "法";
+                  roleColor = "#60a5fa"; // 淺藍色
+              } else if (item.role === "knight") {
+                  roleText = "騎";
+                  roleColor = "#fbbf24"; // 黃色
+              } else {
+                  // 通用道具顯示「全」
+                  roleText = "全";
+                  roleColor = "#94a3b8"; // 淺灰色
               }
+              
+              if (roleText) {
+                  // 深色描邊
+                  ctx.strokeStyle = "rgba(0, 0, 0, 0.8)";
+                  ctx.lineWidth = 2;
+                  ctx.lineJoin = "round";
+                  ctx.miterLimit = 2;
+                  ctx.strokeText(roleText, pos.x + GRID_SIZE/2, pos.y + GRID_SIZE - 5);
+                  
+                  // 填充顏色
+                  ctx.fillStyle = roleColor;
+                  ctx.fillText(roleText, pos.x + GRID_SIZE/2, pos.y + GRID_SIZE - 5);
+              }
+              ctx.restore();
           }
       }
   });
@@ -2679,7 +2684,7 @@ function draw() {
           
           // 血條
           if (e.hp < e.maxHp) {
-              drawHealthBar(ctx, pos.x, pos.y - 10, GRID_SIZE, 4, e.hp, e.maxHp);
+              drawHealthBar(ctx, pos.x, pos.y - 7, GRID_SIZE, 4, e.hp, e.maxHp);
           }
           
           // 顯示傷害數字（當 hpTextTimer > 0 時）
@@ -2688,14 +2693,32 @@ function draw() {
               ctx.font = "bold 12px sans-serif";
               ctx.textAlign = "center";
               const hpText = `HP${Math.ceil(e.hp)}`;
-              ctx.fillText(hpText, pos.x + GRID_SIZE/2, pos.y - 15);
+              ctx.fillText(hpText, pos.x + GRID_SIZE/2, pos.y - 12);
               ctx.textAlign = "left";
           }
           
-          // 等級
-          ctx.fillStyle = "#ffffff"; // 白色
-          ctx.font = "10px sans-serif";
-          ctx.fillText(`Lv.${e.level}`, pos.x + GRID_SIZE/2, pos.y + GRID_SIZE + 10);
+          // 等級（與勇者單位相同的樣式：白色文字 + 深色描邊）
+          ctx.save();
+          ctx.font = "bold 10px Arial";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "top";
+          
+          const levelText = `Lv.${e.level}`;
+          const levelTextX = pos.x + GRID_SIZE/2;
+          const levelTextY = pos.y + GRID_SIZE - 6; // 與勇者單位相同的位置
+          
+          // 深色描邊
+          ctx.strokeStyle = "rgba(0, 0, 0, 0.8)";
+          ctx.lineWidth = 2.5;
+          ctx.lineJoin = "round";
+          ctx.miterLimit = 2;
+          ctx.strokeText(levelText, levelTextX, levelTextY);
+          
+          // 白色填充
+          ctx.fillStyle = "#ffffff";
+          ctx.fillText(levelText, levelTextX, levelTextY);
+          
+          ctx.restore();
           
           ctx.restore();
       }
@@ -2881,7 +2904,7 @@ function draw() {
       
       // 隊長血條（只有血量未滿時才顯示）
       if (i === 0 && leaderHP < getLeaderMaxHp()) {
-          drawHealthBar(ctx, pos.x, pos.y - 10, GRID_SIZE, 5, leaderHP, getLeaderMaxHp());
+          drawHealthBar(ctx, pos.x, pos.y - 7, GRID_SIZE, 5, leaderHP, getLeaderMaxHp());
           
           // 無敵狀態倒數顯示（使用循環外計算的 currentTime 和 isInvincible）
           if (isInvincible) {
@@ -4228,6 +4251,18 @@ function startPlayerDeath(reason) {
     isPlayerDying = true;
     deathReason = reason;
     deathTimer = 60; // 約 1 秒 (60幀)
+    
+    // 停止所有移動插值，讓玩家停留在當前位置（避免回彈）
+    snake.forEach(s => {
+        // 將目標位置設為當前渲染位置，停止插值移動
+        s.targetRenderX = s.renderX;
+        s.targetRenderY = s.renderY;
+        s.startRenderX = s.renderX;
+        s.startRenderY = s.renderY;
+        // 清除回彈速度
+        s.bounceVx = 0;
+        s.bounceVy = 0;
+    });
     
     // 播放死亡特效 (隊長位置)
     if (snake.length > 0) {

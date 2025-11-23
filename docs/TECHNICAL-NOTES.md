@@ -68,6 +68,8 @@ const GAME_VERSION = "1.1.0";
   - 隊長不會消失，而是變紅並覆蓋崩解特效 (`player-disintegrate`)。
 - **撞牆處理**：
   - 在 `moveSnake` 中檢測到撞牆後，直接調用 `startPlayerDeath` 並 `return`，**不執行**後續的位置更新。這確保玩家停在撞擊點（原地死亡），不會有視覺上的回彈。
+  - **防止回彈機制**：在 `startPlayerDeath` 中，必須將所有蛇段的 `targetRenderX/Y` 和 `startRenderX/Y` 都設為當前的 `renderX/Y`，並清除所有回彈速度（`bounceVx`, `bounceVy`）。這樣可以防止 Lerp 插值繼續移動，避免視覺上的回彈效果。
+  - **死亡期間回彈保護**：在 `gameLoop` 的 Lerp 邏輯中，當 `isPlayerDying = true` 時，不應用回彈速度，確保死亡動畫期間不會有任何移動。
 - **無敵機制**：
   - **隊伍級別判定**：在 `updateEnemies` 中，碰撞檢測前先檢查 `invincibilityEndTime`。如果無敵，跳過所有碰撞邏輯。這解決了多怪同時攻擊導致瞬間秒殺的問題。
   - **冷卻時間**：碰撞冷卻時間設為 500ms。
@@ -119,6 +121,13 @@ s.renderY = s.startRenderY + (s.targetRenderY - s.startRenderY) * moveProgress;
 ❌ **錯誤 1**：在 `moveSnake` 中重置 `renderX/Y`（導致跳動）。
 ❌ **錯誤 2**：使用指數插值（導致速度不均）。
 ❌ **錯誤 3**：不記錄起始位置（導致插值錯誤）。
+
+### 暫停恢復後的瞬間移動問題
+**問題描述**：當遊戲暫停（升級選單或倒數）時，`lastMoveTime` 沒有更新，導致時間持續累積。恢復遊戲瞬間，計算出的「經過時間」非常大，導致遊戲邏輯判定應該「立即移動」，造成：
+- **瞬間移動**：蛇在恢復的第一幀就移動了一格，玩家完全沒有反應時間。
+- **畫面不同步**：由於移動是瞬間發生的，而畫面的平滑移動（Lerp）依賴於時間插值，重置後的插值計算會讓畫面在這一幀停留在「移動前」的位置。
+
+**解決方案**：在所有恢復遊戲邏輯執行前（`selectUpgrade`、`startCountdown` 結束時），重置 `lastMoveTime` 和 `lastEnemySpawn` 為當前時間（`performance.now()`）。這會讓遊戲邏輯認為「剛完成一次移動」，從而等待一個完整的移動週期才進行下一次移動，給予玩家反應時間並確保畫面與邏輯同步。
 
 ## Canvas 座標轉換
 

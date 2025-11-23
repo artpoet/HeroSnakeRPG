@@ -496,6 +496,22 @@ function startGame() {
   animationId = requestAnimationFrame(gameLoop);
 }
 
+// 浮動文字特效 helper
+function spawnFloatingText(x, y, text, color, target = null) {
+    effects.push({
+        type: "text",
+        text: text,
+        x: x,
+        y: y,
+        color: color,
+        life: 40,
+        vy: -0.5,
+        fontSize: 16,
+        fontWeight: "bold",
+        target: target
+    });
+}
+
 function spawnItem() {
   let x, y;
   let attempts = 0;
@@ -811,7 +827,8 @@ function moveSnake(timestamp) {
           });
       }
       
-      // 3. 文字特效（+1）
+      // 3. 文字特效（+1）已移除，改為在隊長身上顯示 Hero +1
+      /*
       effects.push({
           type: "text",
           text: "+1",
@@ -820,6 +837,7 @@ function moveSnake(timestamp) {
           life: 30,
           color: "#4ade80"
       });
+      */
       
       // 移除收集的道具，生成新的
       items[collectedItemIndex] = spawnItem();
@@ -858,7 +876,16 @@ function handleItemCollection(specifiedRole) {
     scoreValue.innerText = snake.length;
     maxLengthThisRun = Math.max(maxLengthThisRun, snake.length);
     
-    // 視覺特效（文字特效已在收集道具時添加，這裡不需要重複）
+    // 視覺特效：獲得勇者 (顯示在隊長身上)
+    if (snake.length > 0) {
+        spawnFloatingText(
+            snake[0].renderX * GRID_SIZE,
+            snake[0].renderY * GRID_SIZE, // 移除 -20 偏移
+            "Hero +1",
+            "#fef08a", // 黃白色 (yellow-200)
+            snake[0] // 跟隨隊長
+        );
+    }
 }
 
 // 檢查並合成勇者
@@ -912,6 +939,14 @@ function checkHeroMerge() {
             }
             
             // 特效：在合併位置顯示等級
+            spawnFloatingText(
+                base.renderX * GRID_SIZE,
+                base.renderY * GRID_SIZE,
+                newLevel >= 4 ? "Lv.MAX" : `Lv.${newLevel}`,
+                "#60a5fa", // 淺藍色
+                base // 跟隨該單位
+            );
+            /*
             effects.push({
                 type: "text",
                 text: newLevel >= 4 ? "Lv.MAX" : `Lv.${newLevel}`,
@@ -923,6 +958,7 @@ function checkHeroMerge() {
                 fontSize: 24,
                 fontWeight: "bold"
             });
+            */
             
             // 添加升級特效 (角色變白 + 升級白光)
             base.levelUpTimer = 40; 
@@ -1301,13 +1337,13 @@ function updateEnemies(target) {
                         
                         // 無敵時不減少 hitPoints，也不觸發爆炸
                         if (!isInvincible) {
-                            // 記錄扣血前的 hitPoints，用於判斷是否觸發受傷爆炸
+                            // 記錄扣血前的 hitPoints，用於判斷是否觸發傷害反震
                             const previousHitPoints = knightSeg.hitPoints;
                             
                             // 減少騎士的 hitPoints
                             knightSeg.hitPoints--;
                             
-                            // 騎士受傷爆炸（每次扣血時觸發，傷害降低一半）
+                            // 騎士傷害反震（每次扣血時觸發，傷害降低一半）
                             const explosionRange = getKnightExplosionRange();
                             const explosionDamage = getKnightExplosionDamage();
                             
@@ -1392,6 +1428,17 @@ function updateEnemies(target) {
                                         snake.push(newSegment);
                                     }
                                     scoreValue.textContent = snake.length;
+                                    
+                                    // 顯示招募勇者特效 (顯示在隊長身上)
+                                    if (snake.length > 0) {
+                                        spawnFloatingText(
+                                            snake[0].renderX * GRID_SIZE,
+                                            snake[0].renderY * GRID_SIZE, // 移除 -20 偏移
+                                            `Hero +${deathBonus}`,
+                                            "#fef08a", // 黃白色 (yellow-200)
+                                            snake[0] // 跟隨隊長
+                                        );
+                                    }
                                 }
                             }
                         }
@@ -1452,7 +1499,7 @@ function getKnightExplosionDamage() {
     const upgrade = window.UPGRADE_CONFIG.upgrades.knight?.explosion;
     if (!upgrade) return 0;
     const level = upgradeLevels.knight.explosion || 0;
-    // 受傷爆炸傷害（配置中已經降低一半，從 10 改為 5）
+    // 傷害反震傷害（配置中已經降低一半，從 10 改為 5）
     return (upgrade.damageIncrement || 0) * level;
 }
 
@@ -1818,6 +1865,34 @@ function createUpgradeOptionElement(option, index) {
             const speedIncreasePercent = Math.abs(option.upgrade.increment) / currentValue * 100;
             const percentText = `<span style="color: #4ade80; font-weight: bold;">${speedIncreasePercent.toFixed(1)}%</span>`;
             descText = `隊長移動速度提升 ${percentText}`;
+        } else if (option.role === "archer" && option.key === "arrowSpeed") {
+            // 射擊速度特殊處理：顯示射擊頻率提升百分比
+            // 箭矢速度
+            const nextArrowSpeed = nextValue;
+            const speedIncrementText = ` <span style="color: #94a3b8; font-size: 0.9em;">(+${option.upgrade.increment})</span>`;
+            const speedReplacement = `<span style="color: #4ade80; font-weight: bold;">+${nextArrowSpeed}</span>${speedIncrementText}`;
+            
+            // 射擊頻率
+            // 頻率計算：reduction = min(level * 0.1, 0.5)
+            // cooldown = 1000 * (1 - reduction)
+            // 頻率 = 1 / cooldown
+            
+            const currentLevel = option.currentLevel || 0;
+            const currentReduction = Math.min(currentLevel * 0.1, 0.5);
+            const currentCooldown = 1000 * (1 - currentReduction);
+            const currentFreq = 1000 / Math.max(currentCooldown, 500);
+            
+            const nextReduction = Math.min((currentLevel + 1) * 0.1, 0.5);
+            const nextCooldown = 1000 * (1 - nextReduction);
+            const nextFreq = 1000 / Math.max(nextCooldown, 500);
+            
+            const freqIncreasePercent = ((nextFreq - currentFreq) / currentFreq) * 100;
+            const freqPercentText = `<span style="color: #4ade80; font-weight: bold;">${freqIncreasePercent.toFixed(0)}%</span>`;
+            const freqIncrementText = ` <span style="color: #94a3b8; font-size: 0.9em;">(+${freqIncreasePercent.toFixed(0)}%)</span>`;
+            
+            // 替換描述中的部分
+            descText = descText.replace("+{value}", speedReplacement);
+            descText = descText.replace("射擊頻率提升", `射擊頻率提升 ${freqPercentText}${freqIncrementText}`);
         } else {
             // 特殊處理：maxHp 顯示增量（increment）而不是總值
             let displayValue = nextValue;
@@ -1936,6 +2011,12 @@ function selectUpgrade(option) {
     }
     
     upgradeOverlay.classList.add("hidden");
+
+    // 重置遊戲循環計時器，避免暫停後瞬間移動
+    const now = performance.now();
+    lastMoveTime = now;
+    lastEnemySpawn = now;
+
     isChoosingUpgrade = false;
     
     // 升級完成後生成石頭（特效會在生成時播放）
@@ -1947,7 +2028,7 @@ function updateAbilityTypeUI() {
     const abilityTypeText = document.getElementById("abilityTypeText");
     if (abilityTypeText) {
         const limit = window.UPGRADE_CONFIG?.abilityTypeLimit || 10;
-        abilityTypeText.innerHTML = `<span style="margin-right: 6px;">📋</span> 能力類型: ${unlockedAbilityTypes.size}/${limit}`;
+        abilityTypeText.innerHTML = `<span style="margin-right: 6px;">📋</span> 能力: ${unlockedAbilityTypes.size}/${limit}`;
         
         // 根據數量變色
         if (unlockedAbilityTypes.size >= limit) {
@@ -2332,7 +2413,24 @@ function damageEnemy(enemy, amount, isCritical = false) {
         addExp(exp);
         
         // 隊長回血
-        leaderHP = Math.min(getLeaderMaxHp(), leaderHP + 10);
+        const oldLeaderHP = leaderHP;
+        const maxLeaderHP = getLeaderMaxHp();
+        if (leaderHP < maxLeaderHP) {
+            leaderHP = Math.min(maxLeaderHP, leaderHP + 10);
+            const healed = leaderHP - oldLeaderHP;
+            if (healed > 0) {
+                // 顯示隊長回血特效
+                 if (snake.length > 0) {
+                    spawnFloatingText(
+                        snake[0].renderX * GRID_SIZE,
+                        snake[0].renderY * GRID_SIZE, // 移除 -20 偏移
+                        `HP +${healed}`,
+                        "#4ade80", // 綠色
+                        snake[0] // 跟隨隊長
+                    );
+                }
+            }
+        }
         
         // 擊殺數增加
         killCount++;
@@ -2357,23 +2455,20 @@ function damageEnemy(enemy, amount, isCritical = false) {
                             healed = true;
                             
                             // 單個騎士回血特效
-  effects.push({
-                                type: "text",
-                                text: `+${healAmount} HP`,
-                                x: seg.renderX * GRID_SIZE,
-                                y: seg.renderY * GRID_SIZE - 20,
-                                color: "#4ade80", // 綠色
-                                life: 40,
-                                vy: -0.5,
-                                fontSize: 14
-                            });
+                            spawnFloatingText(
+                                seg.renderX * GRID_SIZE,
+                                seg.renderY * GRID_SIZE, // 移除 -20 偏移
+                                `HP +${healAmount}`,
+                                "#4ade80", // 綠色
+                                seg // 跟隨騎士
+                            );
                         }
                     }
                 });
                 
                 if (healed) {
                     // 如果有騎士被治療，播放一個充能音效或特效（這裡先用文字）
-                    // 可以在畫面上方顯示 "聖光充能!"
+                    // 可以在畫面上方顯示 "擊殺回血!"
                 }
             }
         }
@@ -2512,21 +2607,34 @@ function draw() {
               // 繪製職業文字 (弓/法/騎)
               if (item.role) {
                   ctx.save();
-                  ctx.fillStyle = "#ffffff";
                   ctx.font = "bold 12px sans-serif";
                   ctx.textAlign = "center";
                   ctx.textBaseline = "top";
-                  ctx.shadowColor = "rgba(0,0,0,0.8)";
-                  ctx.shadowBlur = 2;
-                  ctx.shadowOffsetX = 1;
-                  ctx.shadowOffsetY = 1;
                   
                   let roleText = "";
-                  if (item.role === "archer") roleText = "弓";
-                  else if (item.role === "mage") roleText = "法";
-                  else if (item.role === "knight") roleText = "騎";
+                  let roleColor = "#ffffff";
+                  
+                  if (item.role === "archer") {
+                      roleText = "弓";
+                      roleColor = "#90ee90"; // 淺綠色
+                  } else if (item.role === "mage") {
+                      roleText = "法";
+                      roleColor = "#60a5fa"; // 淺藍色
+                  } else if (item.role === "knight") {
+                      roleText = "騎";
+                      roleColor = "#fbbf24"; // 黃色
+                  }
                   
                   if (roleText) {
+                      // 深色描邊
+                      ctx.strokeStyle = "rgba(0, 0, 0, 0.8)";
+                      ctx.lineWidth = 2;
+                      ctx.lineJoin = "round";
+                      ctx.miterLimit = 2;
+                      ctx.strokeText(roleText, pos.x + GRID_SIZE/2, pos.y + GRID_SIZE - 5);
+                      
+                      // 填充顏色
+                      ctx.fillStyle = roleColor;
                       ctx.fillText(roleText, pos.x + GRID_SIZE/2, pos.y + GRID_SIZE - 5);
                   }
                   ctx.restore();
@@ -2585,7 +2693,7 @@ function draw() {
           }
           
           // 等級
-          ctx.fillStyle = "white";
+          ctx.fillStyle = "#ffffff"; // 白色
           ctx.font = "10px sans-serif";
           ctx.fillText(`Lv.${e.level}`, pos.x + GRID_SIZE/2, pos.y + GRID_SIZE + 10);
           
@@ -2699,20 +2807,25 @@ function draw() {
             const level = s.level || 1;
             if (level > 1) {
                 ctx.save();
-                ctx.fillStyle = "#ffffff";
                 ctx.font = "bold 10px Arial";
                 ctx.textAlign = "center";
                 ctx.textBaseline = "top";
-                ctx.shadowColor = "rgba(0,0,0,0.8)";
-                ctx.shadowBlur = 3;
-                ctx.shadowOffsetX = 1;
-                ctx.shadowOffsetY = 1;
                 
                 const text = level >= 4 ? "Lv MAX" : `Lv ${level}`;
-                // 如果是 Lv MAX，用金色顯示
-                if (level >= 4) ctx.fillStyle = "#FFD700";
+                const textX = pos.x + GRID_SIZE/2;
+                const textY = pos.y + GRID_SIZE - 6; // 降低位置，避免擋住角色臉部
                 
-                ctx.fillText(text, pos.x + GRID_SIZE/2, pos.y + GRID_SIZE - 12);
+                // 深色描邊
+                ctx.strokeStyle = "rgba(0, 0, 0, 0.8)";
+                ctx.lineWidth = 2.5;
+                ctx.lineJoin = "round";
+                ctx.miterLimit = 2;
+                ctx.strokeText(text, textX, textY);
+                
+                // 白色填充
+                ctx.fillStyle = "#ffffff";
+                ctx.fillText(text, textX, textY);
+                
                 ctx.restore();
             }
           }
@@ -2815,6 +2928,12 @@ function draw() {
 
   // 8. 繪製特效
   effects.forEach(e => {
+      // 如果有跟隨目標，更新位置
+      if (e.target) {
+          e.x = e.target.renderX * GRID_SIZE;
+          e.y = e.target.renderY * GRID_SIZE; // 移除 -20 偏移，讓起點更低
+      }
+
       const pos = camera.transform(e.x, e.y);
     ctx.save();
       
@@ -2824,7 +2943,18 @@ function draw() {
           const fontSize = e.fontSize || (e.isCritical ? 20 : 14);
           const fontWeight = e.fontWeight || "bold";
           ctx.font = `${fontWeight} ${fontSize}px sans-serif`;
-          ctx.fillText(e.text, pos.x, pos.y - (30 - e.life)); // 向上飄
+          
+          // 設置水平置中
+          ctx.textAlign = "center";
+
+          // 計算向上飄的偏移量 (較緩和的飄動)
+          const floatDistance = 20;
+          const progress = 1 - (e.life / 40); // 假設 maxLife 為 40
+          const yOffset = floatDistance * progress;
+          
+          // 這裡 pos.x 已經是左上角座標，加上 GRID_SIZE/2 才會是角色中心
+          // 但我們也需要考慮文字的起始偏移，這裡直接調整繪製位置
+          ctx.fillText(e.text, pos.x + GRID_SIZE / 2, pos.y - yOffset);
           e.life--;
       } else if (e.type === "critical-flash") {
           // 致命一擊閃光特效（快速擴散）
@@ -2884,7 +3014,7 @@ function draw() {
       ctx.stroke();
           e.life--;
       } else if (e.type === "knight-explosion") {
-          // 騎士受傷爆炸特效
+          // 騎士傷害反震特效
           const maxLife = e.maxLife || 20; // 預設 20，但玩家死亡時使用 40
           const progress = 1 - (e.life / maxLife); // 0 到 1
           e.radius = Math.max(0, e.maxRadius * progress);
@@ -4439,6 +4569,7 @@ function startCountdown() {
         countdownNumber.innerText = count;
     }
     
+    // 改為更緊湊的倒數，每 500ms 更新一次，總共 1.5 秒跑完 3, 2, 1
     const interval = setInterval(() => {
         count--;
         if (count > 0) {
@@ -4450,14 +4581,31 @@ function startCountdown() {
                 countdownNumber.style.animation = null;
             }
         } else {
-            clearInterval(interval);
-            if (countdownOverlay) {
-                countdownOverlay.classList.add("hidden");
+            // 最後顯示 GO!
+            if (countdownNumber) {
+                countdownNumber.innerText = "GO!";
+                countdownNumber.style.animation = 'none';
+                countdownNumber.offsetHeight; /* trigger reflow */
+                countdownNumber.style.animation = null;
             }
-            isCountdown = false;
-            isPaused = false;
+            
+            // 延遲一下再關閉，讓玩家看到 GO!
+            setTimeout(() => {
+                clearInterval(interval);
+                if (countdownOverlay) {
+                    countdownOverlay.classList.add("hidden");
+                }
+                
+                // 重置遊戲循環計時器，避免倒數後瞬間移動
+                const now = performance.now();
+                lastMoveTime = now;
+                lastEnemySpawn = now;
+
+                isCountdown = false;
+                isPaused = false;
+            }, 500);
         }
-    }, 1000);
+    }, 500); // 從 1000ms 改為 500ms
 }
 
 

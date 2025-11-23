@@ -81,7 +81,7 @@ window.GUIDE_CONFIG = {
           </div>
           <div class="role-rule">
             <strong>騎士 (Knight)</strong>
-            <p>血量隨等級倍數提升 (2 &gt; 4 &gt; 8 &gt; 16)。<br>升級可解鎖：聖光充能(擊殺回血)、受傷爆炸、無敵護盾。</p>
+            <p>血量隨等級倍數提升 (2 &gt; 4 &gt; 8 &gt; 16)。<br>升級可解鎖：擊殺回血、傷害反震、聖光庇護。</p>
           </div>
         </div>
       `

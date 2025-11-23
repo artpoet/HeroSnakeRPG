@@ -122,7 +122,7 @@ window.UPGRADE_CONFIG = {
     // 騎士升級
     knight: {
       recharge: {
-        name: "聖光充能",
+        name: "擊殺回血",
         description: "每擊殺 10 隻怪物，回復騎士 {value} 點血量",
         baseValue: 0,       // 基礎值
         increment: 1,       // 每次升級增加回復量（Lv1恢復1點, Lv5恢復5點）
@@ -130,7 +130,7 @@ window.UPGRADE_CONFIG = {
         icon: "knight.png",
       },
       deathBonus: {
-        name: "死亡後招募勇者",
+        name: "榮譽號召",
         description: "騎士死亡時招募 {value} 名勇者",
         baseValue: 0,       // 基礎值（0 表示沒有加成）
         increment: 2,       // 每次升級增加的值（從 1 改為 2）
@@ -138,7 +138,7 @@ window.UPGRADE_CONFIG = {
         icon: "knight.png",
       },
       explosion: {
-        name: "受傷爆炸",
+        name: "傷害反震",
         description: "騎士受傷時爆炸範圍 +{value} 像素，傷害 +{damage}",
         baseValue: 0,       // 基礎值（0 表示沒有爆炸）
         increment: 70,      // 每次升級增加 70 像素範圍（從 40 增加 30）
@@ -147,7 +147,7 @@ window.UPGRADE_CONFIG = {
         icon: "knight.png",
       },
       invincibility: {
-        name: "無敵",
+        name: "聖光庇護",
         description: "受傷後 {value} 秒內所有我方角色對敵人攻擊無敵",
         baseValue: 0,       // 基礎值（0 表示沒有無敵）
         increment: 1,       // 每次升級增加 1 秒

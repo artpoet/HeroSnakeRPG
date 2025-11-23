@@ -131,7 +131,7 @@ window.UPGRADE_CONFIG = {
       },
       deathBonus: {
         name: "死亡後招募勇者",
-        description: "騎士死亡時隊伍長度 +{value}",
+        description: "騎士死亡時招募 {value} 名勇者",
         baseValue: 0,       // 基礎值（0 表示沒有加成）
         increment: 2,       // 每次升級增加的值（從 1 改為 2）
         maxLevel: 3,
@@ -177,7 +177,7 @@ window.UPGRADE_CONFIG = {
       moveSpeed: {
         name: "移動速度",
         description: "隊長移動速度提升（移動間隔減少 {value} 毫秒）",
-        baseValue: 200,     // 基礎移動間隔（GAME_SPEED，毫秒）- 從 180 增加到 200，稍微變慢
+        baseValue: 230,     // 基礎移動間隔（GAME_SPEED，毫秒）- 從 200 增加到 230，再慢一點
         increment: -15,     // 每次升級減少的值（負數表示減少間隔，即加快速度）
         maxLevel: 5,        // 最大等級 5
         icon: "leader.png",

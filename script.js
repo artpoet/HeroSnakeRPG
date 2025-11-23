@@ -7,7 +7,7 @@
 */
 
 // 遊戲版本號
-const GAME_VERSION = "1.3.12";
+const GAME_VERSION = "1.4.8";
 
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
@@ -136,6 +136,9 @@ let unlockedAbilityTypes = new Set(); // 使用 Set 追蹤已解鎖的能力類�
 let knightKillCounter = 0; // 騎士擊殺計數器（用於充能）
 let obstacles = []; // 障礙物（石頭）
 let deathReason = ""; // 死因
+let isPlayerDying = false; // 是否正在播放死亡動畫
+let deathTimer = 0; // 死亡動畫倒數計時
+
 
 // 死因幹話庫
 const DEATH_MESSAGES = {
@@ -713,8 +716,7 @@ function moveSnake(timestamp) {
 
   // 邊界檢查 (World Bounds)
   if (nextX < 0 || nextX >= WORLD_WIDTH_GRIDS || nextY < 0 || nextY >= WORLD_HEIGHT_GRIDS) {
-    deathReason = "wall";
-    triggerGameOver();
+    startPlayerDeath("wall");
     return;
   }
 
@@ -724,8 +726,7 @@ function moveSnake(timestamp) {
       const elapsed = Date.now() - (o.spawnTime || 0);
       return o.x === nextX && o.y === nextY && elapsed > SPAWN_PROTECTION_TIME;
   })) {
-    deathReason = "obstacle";
-    triggerGameOver();
+    startPlayerDeath("obstacle");
     return;
   }
   
@@ -737,12 +738,10 @@ function moveSnake(timestamp) {
         if (knightIdx !== -1 && knightIdx !== i) {
             // 騎士犧牲... (這裡為簡化，暫時直接 GameOver，完整邏輯需參考原 script)
             // 為了重構重點在渲染，這裡先保留基本碰撞
-            deathReason = "knight_sacrifice"; // 特殊死因
-            triggerGameOver(); 
+            startPlayerDeath("knight_sacrifice"); // 特殊死因
             return;
         }
-        deathReason = "self";
-        triggerGameOver();
+        startPlayerDeath("self");
         return;
     }
   }
@@ -957,6 +956,33 @@ function checkHeroMerge() {
 
 // Game Loop
 function gameLoop(timestamp) {
+  // 處理死亡動畫
+  if (isPlayerDying) {
+      // 只更新特效，不更新遊戲邏輯
+      draw(); // 繪製當前狀態
+      // 注意：updateEffects 目前是集成在 draw 還是獨立的？
+      // 檢查代碼發現特效更新是在 updateProjectiles 後面還是在 draw 裡？
+      // 通常 update logic 和 draw logic 分開。
+      // 讓我們檢查一下特效更新在哪裡。
+      // 根據之前的 read_file，特效是在 draw() 裡繪製並減少 life。
+      // 但這是不對的，draw 應該只負責畫。
+      // 讓我們再次檢查 draw 函數。
+      
+      // 重新檢查 draw 函數
+      // line 2537: effects.forEach(e => { ... e.life-- ... })
+      // 是的，特效更新邏輯混在 draw 裡。所以只叫 draw() 就會更新特效。
+      
+      deathTimer--;
+      if (deathTimer <= 0) {
+          isPlayerDying = false;
+          triggerGameOver();
+          return; // 結束 loop
+      }
+      
+      animationId = requestAnimationFrame(gameLoop);
+      return;
+  }
+
   if (isGameOver) return;
   
   if (isPaused || isCountdown || isChoosingUpgrade) {
@@ -1151,9 +1177,16 @@ function updateEnemies(target) {
         if (e.hpTextTimer > 0) e.hpTextTimer--;
         
         // 碰撞檢測 (敵人 vs 蛇)
-        // 添加碰撞冷卻時間，避免頻繁觸發（300ms）
-        const COLLISION_COOLDOWN = 300;
+        // 添加碰撞冷卻時間，避免頻繁觸發（從 300ms 提升到 500ms）
+        const COLLISION_COOLDOWN = 500;
         const currentTime = performance.now();
+        
+        // 【方案1】檢查隊伍級別的無敵狀態（騎士受傷後觸發）
+        // 如果在無敵期間，怪物無法對任何隊員造成傷害
+        const isTeamInvincible = invincibilityEndTime > 0 && currentTime < invincibilityEndTime;
+        if (isTeamInvincible) {
+            return; // 無敵中，跳過所有碰撞傷害邏輯
+        }
         
         // 檢查碰撞冷卻時間
         if (e.lastCollisionTime && currentTime - e.lastCollisionTime < COLLISION_COOLDOWN) {
@@ -1198,8 +1231,7 @@ function updateEnemies(target) {
                         const enemyDamage = e.damage || 35;
                         leaderHP = Math.max(0, leaderHP - enemyDamage);
                         if (leaderHP <= 0) {
-                            deathReason = "monster";
-                            triggerGameOver();
+                            startPlayerDeath("monster");
                             return;
                         }
                     }
@@ -1317,6 +1349,19 @@ function updateEnemies(target) {
                             
                             // 檢查騎士是否死亡（hitPoints <= 0）
                             if (knightSeg.hitPoints <= 0) {
+                                // 添加隊員死亡特效 (血紅)
+                                const kx = knightSeg.renderX * GRID_SIZE + GRID_SIZE/2;
+                                const ky = knightSeg.renderY * GRID_SIZE + GRID_SIZE/2;
+                                effects.push({
+                                    type: "member-death",
+                                    x: kx, y: ky,
+                                    radius: 0, maxRadius: GRID_SIZE * 1.5,
+                                    alpha: 0.9,
+                                    life: 30,
+                                    maxLife: 30, // 設定最大生命週期
+                                    color: "#dc2626" // 深紅
+                                });
+                                
                                 snake.splice(knightIdx, 1);
                                 scoreValue.textContent = snake.length;
                                 
@@ -1359,10 +1404,23 @@ function updateEnemies(target) {
                         
                         if (!isInvincible) {
                             // 沒有無敵，移除被撞的隊員
+                            // 添加隊員死亡特效 (血紅)
+                            const sx = s.renderX * GRID_SIZE + GRID_SIZE/2;
+                            const sy = s.renderY * GRID_SIZE + GRID_SIZE/2;
+                            effects.push({
+                                type: "member-death",
+                                x: sx, y: sy,
+                                radius: 0, maxRadius: GRID_SIZE * 1.5,
+                                alpha: 0.9,
+                                life: 30,
+                                maxLife: 30, // 設定最大生命週期
+                                color: "#dc2626" // 深紅
+                            });
+                            
                             // 在移除前添加受傷閃爍效果（雖然會立即移除，但視覺上更連貫）
                             s.hitTimer = 3; // 短暫閃爍
                             snake.splice(index, 1);
-  scoreValue.textContent = snake.length;
+                            scoreValue.textContent = snake.length;
                         }
                     }
                 }
@@ -2591,6 +2649,14 @@ function draw() {
           const drawY = pos.y - (drawSize - GRID_SIZE) / 2;
           
           ASSETS[assetKey].draw(ctx, drawX, drawY, drawSize, s.facing);
+          
+          // 死亡變紅效果 (繪製在角色上方)
+          if (isPlayerDying && i === 0) {
+              ctx.globalCompositeOperation = "source-atop"; // 只在角色非透明區域繪製
+              ctx.fillStyle = "rgba(239, 68, 68, 0.6)"; // 紅色
+              ctx.fillRect(drawX, drawY, drawSize, drawSize);
+          }
+          
           ctx.restore();
           
           // 升級特效 (角色變白 + 升級白光)
@@ -2762,8 +2828,9 @@ function draw() {
           e.life--;
       } else if (e.type === "critical-flash") {
           // 致命一擊閃光特效（快速擴散）
-          const progress = 1 - (e.life / 10); // 0 到 1
-          e.radius = e.maxRadius * progress;
+          const maxLife = e.maxLife || 10;
+          const progress = 1 - (e.life / maxLife); // 0 到 1
+          e.radius = Math.max(0, e.maxRadius * progress);
           ctx.globalAlpha = e.alpha * (1 - progress); // 逐漸淡出
           ctx.strokeStyle = e.color;
           ctx.lineWidth = 3;
@@ -2795,17 +2862,20 @@ function draw() {
           e.life--;
       } else if (e.type === "merge-flash") {
           // 合成特效 (白色圓圈擴散)
-          const progress = 1 - (e.life / 20);
+          const maxLife = e.maxLife || 20;
+          const progress = 1 - (e.life / maxLife);
           ctx.globalAlpha = 1 - progress;
           ctx.fillStyle = e.color;
           ctx.beginPath();
-          ctx.arc(pos.x, pos.y, e.radius * progress * 2, 0, Math.PI * 2);
+          const currentRadius = Math.max(0, e.radius * progress * 2);
+          ctx.arc(pos.x, pos.y, currentRadius, 0, Math.PI * 2);
           ctx.fill();
           e.life--;
       } else if (e.type === "item-collect") {
           // 道具收集光環擴散特效
-          const progress = 1 - (e.life / 20); // 0 到 1
-          e.radius = e.maxRadius * progress;
+          const maxLife = e.maxLife || 20;
+          const progress = 1 - (e.life / maxLife); // 0 到 1
+          e.radius = Math.max(0, e.maxRadius * progress);
           ctx.globalAlpha = e.alpha * (1 - progress); // 逐漸淡出
           ctx.strokeStyle = e.color;
       ctx.lineWidth = 3;
@@ -2815,8 +2885,9 @@ function draw() {
           e.life--;
       } else if (e.type === "knight-explosion") {
           // 騎士受傷爆炸特效
-          const progress = 1 - (e.life / 20); // 0 到 1
-          e.radius = e.maxRadius * progress;
+          const maxLife = e.maxLife || 20; // 預設 20，但玩家死亡時使用 40
+          const progress = 1 - (e.life / maxLife); // 0 到 1
+          e.radius = Math.max(0, e.maxRadius * progress);
           ctx.globalAlpha = e.alpha * (1 - progress); // 逐漸淡出
           ctx.fillStyle = e.color;
           ctx.strokeStyle = e.color;
@@ -2829,8 +2900,9 @@ function draw() {
           e.life--;
       } else if (e.type === "arrow-explosion") {
           // 弓箭爆炸特效 - 黃白色光圈，只有一兩圈，不透明一點
-          const progress = 1 - (e.life / 15); // 0 到 1
-          e.radius = e.maxRadius * progress;
+          const maxLife = e.maxLife || 15;
+          const progress = 1 - (e.life / maxLife); // 0 到 1
+          e.radius = Math.max(0, e.maxRadius * progress);
           const currentAlpha = e.alpha * (1 - progress * 0.5); // 淡出速度減慢，保持更長時間可見
           
           // 繪製外圈（描邊，較粗）
@@ -2851,8 +2923,12 @@ function draw() {
           e.life--;
       } else if (e.type === "obstacle-spawn") {
           // 石頭出現特效（閃光擴散，持續更久）
-          const progress = 1 - (e.life / 60); // 0 到 1 (life=60)
-          e.radius = e.maxRadius * progress;
+          const maxLife = e.maxLife || 60; // 預設 60 (之前是 20，後來改為 60)
+          // 檢查 life 是否超過 maxLife (防止負進度)
+          if (e.life > maxLife) e.life = maxLife;
+          
+          const progress = 1 - (e.life / maxLife); // 0 到 1
+          e.radius = Math.max(0, e.maxRadius * progress);
           ctx.globalAlpha = e.alpha * (1 - progress); // 逐漸淡出
           
           // 繪製外圈（描邊）
@@ -2869,6 +2945,68 @@ function draw() {
           ctx.arc(pos.x, pos.y, e.radius, 0, Math.PI * 2);
       ctx.fill();
           
+          e.life--;
+      } else if (e.type === "member-death") {
+          // 隊員死亡特效（血紅擴散 + 粒子）
+          const maxLife = e.maxLife || 30; // 預設 30，但使用 e.maxLife (如玩家死亡是 60)
+          const progress = 1 - (e.life / maxLife);
+          
+          // 1. 血霧擴散
+          ctx.globalAlpha = e.alpha * (1 - progress);
+          ctx.fillStyle = e.color;
+          const currentRadius = Math.max(0, e.maxRadius * progress); // 確保半徑不為負
+          
+          ctx.beginPath();
+          ctx.arc(pos.x, pos.y, currentRadius, 0, Math.PI * 2);
+          ctx.fill();
+          
+          // 2. 血塊粒子 (隨機飛散)
+          if (e.life > 10) {
+             const seed = e.life * 13; // 偽隨機種子
+             const count = 8;
+             for(let i=0; i<count; i++) {
+                 const angle = (seed + i * (360/count)) * Math.PI / 180;
+                 const dist = currentRadius * (0.5 + Math.sin(seed+i)*0.5);
+                 const size = 4 * (1-progress);
+                 
+                 ctx.beginPath();
+                 ctx.arc(pos.x + Math.cos(angle)*dist, pos.y + Math.sin(angle)*dist, Math.max(0, size), 0, Math.PI*2);
+                 ctx.fill();
+             }
+          }
+          
+          e.life--;
+      } else if (e.type === "player-disintegrate") {
+          // 玩家崩解特效 (像素方塊飛散)
+          const maxLife = e.maxLife || 60;
+          const progress = 1 - (e.life / maxLife);
+          
+          if (e.life > 0) {
+              // 第一次繪製時初始化粒子 (只需要一次，但為了簡單，每次計算隨機位置)
+              // 為了更像崩解，我們使用固定的種子來生成一致的粒子運動軌跡
+              const seed = maxLife * 17; // 固定種子
+              const particles = 16; // 16 個小方塊
+              
+              ctx.fillStyle = e.color;
+              
+              for (let i = 0; i < particles; i++) {
+                  // 偽隨機角度和速度
+                  const angle = ((seed + i * 137) % 360) * Math.PI / 180;
+                  const speed = 2 + ((seed + i * 79) % 3); // 2-5
+                  
+                  // 當前距離
+                  const dist = speed * progress * 40; // 擴散距離
+                  
+                  // 粒子大小 (隨時間變小)
+                  const size = Math.max(0, (GRID_SIZE / 4) * (1 - progress));
+                  
+                  // 使用轉換後的螢幕座標 pos.x, pos.y 作為中心
+                  const px = pos.x + Math.cos(angle) * dist - size/2;
+                  const py = pos.y + Math.sin(angle) * dist - size/2;
+                  
+                  ctx.fillRect(px, py, size, size);
+              }
+          }
           e.life--;
       } else if (e.type === "item-star") {
           // 道具收集星星粒子特效
@@ -3951,6 +4089,32 @@ if (pauseHomeBtn) {
     pauseHomeBtn.addEventListener("click", () => {
         window.location.reload(); // 簡單重置
     });
+}
+
+// 啟動玩家死亡流程
+function startPlayerDeath(reason) {
+    if (isPlayerDying || isGameOver) return;
+    
+    isPlayerDying = true;
+    deathReason = reason;
+    deathTimer = 60; // 約 1 秒 (60幀)
+    
+    // 播放死亡特效 (隊長位置)
+    if (snake.length > 0) {
+        const head = snake[0];
+        // 使用視覺座標 renderX/Y，確保特效出現在玩家當前看到的位置
+        const hx = head.renderX * GRID_SIZE + GRID_SIZE/2;
+        const hy = head.renderY * GRID_SIZE + GRID_SIZE/2;
+        
+        // 玩家崩解特效 (像素方塊飛散)
+        effects.push({
+            type: "player-disintegrate",
+            x: hx, y: hy,
+            life: 60,
+            maxLife: 60,
+            color: "#ef4444" // 隊長主要顏色 (紅色)
+        });
+    }
 }
 
 async function triggerGameOver() {
